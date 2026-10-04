@@ -8,7 +8,7 @@ import {
   removeFromGroups,
   insertIntoGroups,
 } from "../lib/ranking";
-const origin = "http://localhost:3001";
+const origin = `http://localhost:${process.env.E2E_PORT || 3001}`;
 const key = "test-pass";
 async function login(context: import("@playwright/test").APIRequestContext) {
   const response = await context.post("/api/session", {

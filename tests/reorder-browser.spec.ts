@@ -2,7 +2,7 @@ import { test, expect, Page } from "@playwright/test";
 import { emptyJournal, Journal, Place } from "../lib/model";
 import { personalGroups } from "../lib/ranking";
 const key = "test-pass";
-const origin = "http://localhost:3001";
+const origin = `http://localhost:${process.env.E2E_PORT || 3001}`;
 function place(id: string, status: Place["status"] = "been"): Place {
   return {
     id,
