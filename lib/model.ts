@@ -19,11 +19,21 @@ export const emptyJournal = (): Journal => ({
   people: ["You", "Your partner"],
   places: [],
 });
-export function average(p: Place) {
-  const scores = p.ratings.filter((v): v is number => v !== null);
-  return scores.length
-    ? scores.reduce((a, b) => a + b, 0) / scores.length
-    : null;
+// Shared by journal validation and CSV import so both enforce the same caps.
+export const LIMITS = {
+  places: 2000,
+  name: 120,
+  country: 120,
+  notes: 5000,
+} as const;
+// True for a real calendar date written as YYYY-MM-DD (rejects 2023-02-31).
+export function isIsoDate(value: string) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return false;
+  const parsed = new Date(`${value}T00:00:00Z`);
+  return (
+    Number.isFinite(parsed.getTime()) &&
+    parsed.toISOString().slice(0, 10) === value
+  );
 }
 export function validateJournal(input: unknown): Journal {
   if (!input || typeof input !== "object") throw new Error("Invalid journal.");
@@ -34,27 +44,27 @@ export function validateJournal(input: unknown): Journal {
     j.people.length !== 2 ||
     j.people.some((p) => typeof p !== "string" || !p.trim() || p.length > 40) ||
     !Array.isArray(j.places) ||
-    j.places.length > 2000
+    j.places.length > LIMITS.places
   )
     throw new Error("Invalid journal.");
   const ids = new Set<string>();
   for (const p of j.places) {
     if (
       !p ||
+      typeof p !== "object" ||
+      typeof p.id !== "string" ||
       !/^[a-zA-Z0-9-]{1,80}$/.test(p.id) ||
       ids.has(p.id) ||
       typeof p.name !== "string" ||
       !p.name.trim() ||
-      p.name.length > 120 ||
+      p.name.length > LIMITS.name ||
       typeof p.country !== "string" ||
-      p.country.length > 120 ||
+      p.country.length > LIMITS.country ||
       !["been", "want"].includes(p.status) ||
       typeof p.notes !== "string" ||
-      p.notes.length > 5000 ||
+      p.notes.length > LIMITS.notes ||
       typeof p.date !== "string" ||
-      (p.date !== "" &&
-        (!/^\d{4}-\d{2}-\d{2}$/.test(p.date) ||
-          !Number.isFinite(Date.parse(p.date)))) ||
+      (p.date !== "" && !isIsoDate(p.date)) ||
       !Array.isArray(p.ratings) ||
       p.ratings.length !== 2 ||
       p.ratings.some(
@@ -92,7 +102,8 @@ export function validateJournal(input: unknown): Journal {
     places: j.places.map((p) => ({
       id: p.id,
       name: p.name.trim(),
-      country: location(p),
+      // Keep the stored value; location() derives the Region: fallback for display.
+      country: p.country.trim(),
       status: p.status,
       date: p.date,
       notes: p.notes,
@@ -109,9 +120,10 @@ export function validateJournal(input: unknown): Journal {
   };
 }
 
+// Display location: the country field, or a legacy "Region:" line in notes.
 export function location(p: Place) {
   const region = p.notes.match(/^Region:[ \t]*(.+)$/m)?.[1].trim() || "";
-  return p.country.trim() || (region.length <= 120 ? region : "");
+  return p.country.trim() || (region.length <= LIMITS.country ? region : "");
 }
 
 export function mergePlace(

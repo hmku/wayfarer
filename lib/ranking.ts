@@ -9,23 +9,67 @@ export function personalGroups(
 ): Groups {
   const eligible = j.places.filter((p) => p.status === status);
   const ids = new Set(eligible.map((p) => p.id));
-  const groups = (j.rankings?.[person] || [])
+  const stored = (j.rankings?.[person] || [])
     .map((g) => g.filter((id) => ids.has(id)))
     .filter((g) => g.length);
-  const known = new Set(groups.flat());
-  const seed = eligible
-    .filter((p) => !known.has(p.id) && p.ratings[person] !== null)
-    .sort(
-      (a, b) =>
-        b.ratings[person]! - a.ratings[person]! || a.name.localeCompare(b.name),
-    );
-  let previous: number | null = null;
-  for (const p of seed) {
-    if (p.ratings[person] !== previous) groups.push([]);
-    groups.at(-1)!.push(p.id);
-    previous = p.ratings[person];
+  const known = new Set(stored.flat());
+  const seeds = seedGroups(
+    eligible.filter((p) => !known.has(p.id) && p.ratings[person] !== null),
+    person,
+  );
+  if (!seeds.length) return stored;
+  const rating = new Map(eligible.map((p) => [p.id, p.ratings[person]]));
+  return mergeSeeds(stored, seeds, (id) => rating.get(id) ?? null);
+}
+
+type Seed = { rating: number; ids: string[] };
+
+// Rated places without a stored position, grouped by equal original rating.
+function seedGroups(places: Place[], person: Person): Seed[] {
+  const seeds: Seed[] = [];
+  const sorted = [...places].sort(
+    (a, b) =>
+      b.ratings[person]! - a.ratings[person]! || a.name.localeCompare(b.name),
+  );
+  for (const p of sorted) {
+    const rating = p.ratings[person]!;
+    if (seeds.at(-1)?.rating !== rating) seeds.push({ rating, ids: [] });
+    seeds.at(-1)!.ids.push(p.id);
   }
-  return groups;
+  return seeds;
+}
+
+// Places each seed group (highest rating first) into the stored order: before
+// the first stored group whose best original rating is lower, or into a stored
+// group whose rated members all share the seed's rating. Stored groups with no
+// original ratings give no signal and are passed over. Stored order is kept.
+function mergeSeeds(
+  stored: Groups,
+  seeds: Seed[],
+  originalRating: (id: string) => number | null,
+): Groups {
+  const result: Groups = [];
+  let next = 0;
+  for (const group of stored) {
+    const merged = [...group];
+    const ratings = group
+      .map(originalRating)
+      .filter((r): r is number => r !== null);
+    if (ratings.length) {
+      const best = Math.max(...ratings);
+      const uniform = ratings.every((r) => r === best);
+      while (next < seeds.length && seeds[next].rating >= best) {
+        const seed = seeds[next];
+        if (seed.rating > best) result.push([...seed.ids]);
+        else if (uniform) merged.push(...seed.ids);
+        else break;
+        next++;
+      }
+    }
+    result.push(merged);
+  }
+  for (const seed of seeds.slice(next)) result.push([...seed.ids]);
+  return result;
 }
 
 export function scoreMap(j: Journal, person: Person, status: Place["status"]) {
