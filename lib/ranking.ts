@@ -204,3 +204,61 @@ export function clearRatings(j: Journal): Journal {
     places: j.places.map((p) => ({ ...p, ratings: [null, null] })),
   };
 }
+
+// Same-category priority applies only when the list has at least this many
+// ranked places sharing the target's category.
+export const SAME_CATEGORY_MIN = 3;
+// The range counts as narrowed once it spans at most this many groups; from
+// then on the plain midpoint is used, so the final comparisons are against
+// whatever is nearest, regardless of category.
+export const NARROWED_SPAN = 2;
+
+export type Bounds = { low: number; high: number };
+
+/**
+ * Picks the next comparison for inserting `target` into `groups` (which must
+ * not contain it), given the unresolved range [low, high).
+ *
+ * Correctness: any pivot inside [low, high) is a valid binary-search probe —
+ * "target wins" sets high = index, "peer wins" sets low = index + 1, a tie
+ * joins group index — so the range strictly shrinks and the final position
+ * means exactly what it did with the midpoint. Only the order of questions
+ * changes.
+ *
+ * Cost: a same-category pivot is only taken from the middle half of the range
+ * (|index − mid| ≤ span/4), so every answer still discards at least a quarter
+ * of it; comparisons stay O(log n) (at most ~2.4 × log2 n).
+ */
+export function choosePivot(
+  groups: Groups,
+  bounds: Bounds,
+  target: Pick<Place, "category">,
+  placesById: ReadonlyMap<string, Pick<Place, "category">>,
+): { index: number; peerId: string } {
+  const { low, high } = bounds;
+  const mid = Math.floor((low + high) / 2);
+  const category = target.category;
+  const sameIn = (group: string[]) =>
+    category
+      ? group.find((id) => placesById.get(id)?.category === category)
+      : undefined;
+  const span = high - low;
+  if (
+    category &&
+    span > NARROWED_SPAN &&
+    groups.flat().filter((id) => placesById.get(id)?.category === category)
+      .length >= SAME_CATEGORY_MIN
+  ) {
+    const radius = Math.floor(span / 4);
+    // Nearest to the midpoint first; on equal distance the higher-ranked
+    // (lower index) group wins.
+    for (let d = 0; d <= radius; d++) {
+      for (const index of [mid - d, mid + d]) {
+        if (index < low || index >= high) continue;
+        const peerId = sameIn(groups[index]);
+        if (peerId) return { index, peerId };
+      }
+    }
+  }
+  return { index: mid, peerId: sameIn(groups[mid]) ?? groups[mid][0] };
+}
