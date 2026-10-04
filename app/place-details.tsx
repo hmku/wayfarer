@@ -51,7 +51,7 @@ export function PlaceDetails({
     setError("");
     try {
       await onMove(date);
-      onClose();
+      setMoveStep(false);
     } catch (e) {
       setError((e as Error).message);
     }

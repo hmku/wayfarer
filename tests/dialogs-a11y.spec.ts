@@ -152,6 +152,9 @@ test("moving a wishlist place to Been asks for a visit date first", async ({
   await moveButton.click();
   await dialog.getByLabel("Visit date").fill("");
   await dialog.getByRole("button", { name: "Confirm move", exact: true }).click();
+  // The details stay open on the moved place so it can be ranked right away.
+  await expect(dialog.locator(".category-badge")).toHaveText("Been");
+  await dialog.getByRole("button", { name: "Close dialog" }).click();
   await expect(dialog).toHaveCount(0);
   await expect(page.getByRole("tab", { name: /Been/ })).toHaveAttribute(
     "aria-selected",
@@ -190,7 +193,9 @@ test("the chosen visit date is saved when moving to Been", async ({ page }) => {
   await page.getByRole("button", { name: "Move to Been", exact: true }).click();
   await page.getByRole("dialog").getByLabel("Visit date").fill("2024-03-05");
   await page.getByRole("button", { name: "Confirm move", exact: true }).click();
-  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.getByRole("dialog").locator(".category-badge")).toHaveText(
+    "Been",
+  );
   const moved = (await saved(page)).places.find((p) => p.id === "W1");
   expect(moved?.status).toBe("been");
   expect(moved?.date).toBe("2024-03-05");

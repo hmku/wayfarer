@@ -87,7 +87,6 @@ export default function Home() {
   const [comparisonKey, setComparisonKey] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
   // Set when a move should leave the details dialog open on the moved place.
-  const keepDetailsOpen = useRef(false);
 
   const activeSort = effectiveSort(sort, tab);
   const { order, person: scorePerson } = activeSort;
@@ -406,14 +405,7 @@ export default function Home() {
           journal={journal}
           place={currentPlace}
           busy={busy}
-          onClose={() => {
-            // A move to Been keeps the dialog open so the place can be ranked.
-            if (keepDetailsOpen.current) {
-              keepDetailsOpen.current = false;
-              return;
-            }
-            setModal(null);
-          }}
+          onClose={() => setModal(null)}
           onEdit={() => {
             setPlace(currentPlace);
             setModal("edit");
@@ -443,13 +435,9 @@ export default function Home() {
               "Move undone",
             );
             setTab(nextStatus);
-            if (nextStatus === "been") {
-              keepDetailsOpen.current = true;
-              setPlace(moved);
-              // If the dialog doesn't call onClose after moving, don't
-              // swallow the user's next close.
-              setTimeout(() => (keepDetailsOpen.current = false), 0);
-            }
+            // A move to Been keeps the dialog open so the place can be ranked.
+            if (nextStatus === "been") setPlace(moved);
+            else setModal(null);
           }}
           onDelete={async () => {
             const snapshot = snapshotPlace(journal, currentPlace.id);

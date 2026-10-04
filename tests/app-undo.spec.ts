@@ -74,10 +74,11 @@ test("undo reverses a move, and moving to Been keeps the dialog open", async ({
   await page.getByRole("button", { name: "Wish, Japan", exact: true }).click();
   await page.getByRole("button", { name: "Move to Been" }).click();
   const dialog = page.getByRole("dialog");
+  await dialog.getByRole("button", { name: "Confirm move", exact: true }).click();
   await expect(dialog.getByRole("heading", { name: "Wish" })).toBeVisible();
   await expect(dialog.locator(".category-badge")).toHaveText("Been");
   await expect(
-    dialog.getByRole("button", { name: "Adjust Alex's rating" }),
+    dialog.getByRole("button", { name: "Rank Alex's rating" }),
   ).toHaveText("Rank");
   await dialog.getByRole("button", { name: "Close dialog" }).click();
   await expect(page.getByRole("tab", { name: /Been/ })).toHaveAttribute(
