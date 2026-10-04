@@ -62,3 +62,8 @@ test("category and region save as field-level changes", () => {
   }));
   expect("category" in unset.places[0]).toBe(false);
 });
+
+test("typographic apostrophes and dashes still match", () => {
+  expect(inferRegion("Côte d’Ivoire")).toBe("africa");
+  expect(inferRegion("Lisbon – Portugal")).toBe("europe");
+});

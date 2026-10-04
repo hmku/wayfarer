@@ -91,3 +91,18 @@ test("export writes category and effective region, and round-trips", () => {
     [null, null],
   ]);
 });
+
+test("free-text Region and Type columns are not auto-mapped", () => {
+  const data = readCsv(
+    "Destination,Country,Region,Type\nHanoi,Vietnam,Southeast Asia,Holiday\nRome,Italy,Lazio,City break\n",
+  );
+  const mapping = initialMapping(data.headers, data.rows);
+  expect(mapping.country).toBe("1");
+  expect(mapping.region).toBe("-1");
+  expect(mapping.category).toBe("-1");
+  expect(convertRows(data.rows, mapping).errors).toEqual([]);
+  // Columns that hold known values are still mapped.
+  const known = readCsv("Destination,Country,Region,Category\nHanoi,Vietnam,Asia,City\n");
+  const m = initialMapping(known.headers, known.rows);
+  expect([m.region, m.category]).toEqual(["2", "3"]);
+});

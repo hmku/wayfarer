@@ -6,7 +6,6 @@ import {
   categories,
   Category,
   categoryLabels,
-  inferRegion,
   Region,
   regionLabels,
   regions,
@@ -174,19 +173,26 @@ export function PlaceForm({
   const [category, setCategory] = useState<Category | "">(
     place?.category ?? "",
   );
-  const [region, setRegion] = useState<Region | "">(
-    (place && regionOf(place)) || "",
-  );
-  // Until the user picks a region, it follows the Country field. A region
-  // stored on the place counts as picked.
-  const [regionPicked, setRegionPicked] = useState(Boolean(place?.region));
+  // "" means automatic: the region is inferred from the country (or a legacy
+  // Region: note), exactly as regionOf() does for the saved place.
+  const [region, setRegion] = useState<Region | "">(place?.region ?? "");
+  const [countryText, setCountryText] = useState(place?.country ?? "");
+  const automaticRegion = regionOf({
+    id: "",
+    name: "",
+    status: "been",
+    date: "",
+    ratings: [null, null],
+    notes: place?.notes ?? "",
+    country: countryText,
+  });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const initial = useRef<Draft>({
     name: place?.name ?? "",
     country: place?.country ?? "",
     category: place?.category ?? "",
-    region: (place && regionOf(place)) || "",
+    region: place?.region ?? "",
     status: place?.status || defaultStatus,
     date: place?.date ?? "",
     notes: place?.notes ?? "",
@@ -225,9 +231,8 @@ export function PlaceForm({
         name: d.name.trim(),
         country: d.country.trim(),
         ...(d.category ? { category: d.category } : {}),
-        // An auto-suggested region is left unset so it keeps following the
-        // country; regionOf() infers the same value.
-        ...(regionPicked && d.region ? { region: d.region } : {}),
+        // Automatic regions stay unset so they keep following the country.
+        ...(d.region ? { region: d.region } : {}),
         status: d.status,
         date: d.date,
         notes: d.notes,
@@ -314,9 +319,7 @@ export function PlaceForm({
               maxLength={120}
               defaultValue={place?.country}
               placeholder="e.g. Japan"
-              onChange={(e) => {
-                if (!regionPicked) setRegion(inferRegion(e.target.value) ?? "");
-              }}
+              onChange={(e) => setCountryText(e.target.value)}
             />
           </div>
           <div className="field">
@@ -325,12 +328,13 @@ export function PlaceForm({
               id="region"
               name="region"
               value={region}
-              onChange={(e) => {
-                setRegion(e.target.value as Region | "");
-                setRegionPicked(true);
-              }}
+              onChange={(e) => setRegion(e.target.value as Region | "")}
             >
-              <option value="">Not set</option>
+              <option value="">
+                {automaticRegion
+                  ? `Automatic (${regionLabels[automaticRegion]})`
+                  : "Automatic (from country)"}
+              </option>
               {regions.map((r) => (
                 <option key={r} value={r}>
                   {regionLabels[r]}
@@ -421,7 +425,7 @@ export function ImportForm({
         throw new Error("Choose a CSV smaller than 2 MB.");
       const data = readCsv(await file.text());
       setParsed(data);
-      setMapping(initialMapping(data.headers));
+      setMapping(initialMapping(data.headers, data.rows));
       setFilename(file.name);
     } catch (err) {
       e.target.value = "";

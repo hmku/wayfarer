@@ -73,7 +73,7 @@ The comparison approach follows publicly documented [Beli behavior](https://www.
 In Google Sheets, select **Travel**, then **File → Download → Comma-separated values (.csv)**. In the app, choose **Import CSV** and map:
 
 - destination and optional country;
-- optional category (City, Nature, Beach) and region (one of the eight region names) columns; unknown values block the import with the row number;
+- optional category (City, Nature, Beach) and region (one of the eight region names) columns; unknown values block the import with the row number. Columns named Region or Type are only picked automatically when every value is one the app knows, so a free-text Region column ("Southeast Asia") is left unmapped and regions come from the country;
 - each person’s rating column;
 - an optional status, date, and notes column.
 

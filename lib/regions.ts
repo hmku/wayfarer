@@ -58,7 +58,12 @@ const lookup = new Map<string, Region>(
 
 /** Best-guess region for free text like "Italy" or "Kyoto, Japan". */
 export function inferRegion(text: string): Region | undefined {
-  const value = text.trim().toLowerCase();
+  // Phones often type curly apostrophes and en/em dashes.
+  const value = text
+    .trim()
+    .toLowerCase()
+    .replace(/[‘’]/g, "'")
+    .replace(/[–—]/g, "-");
   if (!value) return undefined;
   const direct = lookup.get(value);
   if (direct) return direct;

@@ -26,7 +26,7 @@ const journal: Journal = {
   ],
 };
 
-test("the form suggests a region from the country until one is picked", async ({
+test("the region is automatic from the country unless one is picked", async ({
   page,
 }) => {
   // open() needs a non-empty list; keep the Been tab populated.
@@ -35,16 +35,18 @@ test("the form suggests a region from the country until one is picked", async ({
   await page.getByRole("button", { name: "Add a destination" }).first().click();
   const dialog = page.getByRole("dialog");
   const region = dialog.getByLabel("Region");
+  const shown = region.locator("option:checked");
   await dialog.getByLabel("Destination").fill("Kyoto");
   await expect(dialog.getByRole("radio", { name: "None" })).toBeChecked();
   await dialog.getByText("Beach", { exact: true }).click();
   await expect(dialog.getByRole("radio", { name: "Beach" })).toBeChecked();
   await dialog.getByLabel("Country").fill("Japan");
-  await expect(region).toHaveValue("asia");
-  await dialog.getByLabel("Country").fill("Kyoto, Peru");
-  await expect(region).toHaveValue("south-america");
-  await dialog.getByLabel("Country").fill("Nowhere");
   await expect(region).toHaveValue("");
+  await expect(shown).toHaveText("Automatic (Asia)");
+  await dialog.getByLabel("Country").fill("Kyoto, Peru");
+  await expect(shown).toHaveText("Automatic (South America)");
+  await dialog.getByLabel("Country").fill("Nowhere");
+  await expect(shown).toHaveText("Automatic (from country)");
   await dialog.getByLabel("Country").fill("Japan");
   await dialog.getByRole("button", { name: "Save destination" }).click();
 
@@ -58,10 +60,13 @@ test("the form suggests a region from the country until one is picked", async ({
   // A suggested region is not stored; it is inferred from the country.
   expect(saved.region).toBeUndefined();
 
-  // Editing preselects the inferred region; a manual pick sticks.
+  // Editing shows the automatic region; a manual pick sticks.
   await details.getByRole("button", { name: "Edit details" }).click();
   const edit = page.getByRole("dialog", { name: "Edit destination" });
-  await expect(edit.getByLabel("Region")).toHaveValue("asia");
+  await expect(edit.getByLabel("Region")).toHaveValue("");
+  await expect(edit.getByLabel("Region").locator("option:checked")).toHaveText(
+    "Automatic (Asia)",
+  );
   await edit.getByLabel("Region").selectOption("oceania");
   await edit.getByLabel("Country").fill("Italy");
   await expect(edit.getByLabel("Region")).toHaveValue("oceania");
@@ -74,6 +79,24 @@ test("the form suggests a region from the country until one is picked", async ({
   expect(saved.region).toBe("oceania");
   expect(saved.country).toBe("Italy");
   expect(saved.category).toBeUndefined();
+
+  // Choosing Automatic again clears the pick, so it follows the country.
+  await page
+    .getByRole("dialog", { name: "Kyoto" })
+    .getByRole("button", { name: "Edit details" })
+    .click();
+  const again = page.getByRole("dialog", { name: "Edit destination" });
+  await expect(again.getByLabel("Region")).toHaveValue("oceania");
+  await again.getByLabel("Region").selectOption("");
+  await expect(again.getByLabel("Region").locator("option:checked")).toHaveText(
+    "Automatic (Europe)",
+  );
+  await again.getByRole("button", { name: "Save destination" }).click();
+  await expect(page.getByRole("dialog", { name: "Kyoto" })).toBeVisible();
+  saved = (await readJournal(page)).journal.places.find(
+    (p) => p.name === "Kyoto",
+  )!;
+  expect(saved.region).toBeUndefined();
 });
 
 test("the table shows category and region, and filters by category", async ({

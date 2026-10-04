@@ -57,8 +57,21 @@ export function readCsv(text: string) {
   const headers = rows[0].map((h, i) => h.trim() || `Column ${i + 1}`);
   return { headers, rows: rows.slice(1) };
 }
-export function initialMapping(headers: string[]): Mapping {
+export function initialMapping(
+  headers: string[],
+  rows: string[][] = [],
+): Mapping {
   const find = (r: RegExp) => String(headers.findIndex((h) => r.test(h)));
+  // Free-text "Region" or "Type" columns (e.g. "Southeast Asia", "Holiday")
+  // are only mapped when every filled cell is a value the app knows.
+  const ifParses = (col: string, parse: (text: string) => unknown) =>
+    col !== "-1" &&
+    rows.every((row) => {
+      const text = (row[Number(col)] || "").trim();
+      return !text || parse(text) !== undefined;
+    })
+      ? col
+      : "-1";
   // Wayfarer exports name rating columns "<person> rating"; use them in order.
   const exported = headers.flatMap((h, i) =>
     / rating$/i.test(h) && !/original rating$/i.test(h) ? [i] : [],
@@ -71,8 +84,8 @@ export function initialMapping(headers: string[]): Mapping {
     name: find(/^(destination|place|city|location|travel destination)$/i),
     // A lone "Region" column is treated as free-text location, as before.
     country: country !== "-1" ? country : region,
-    region: country !== "-1" ? region : "-1",
-    category: find(/^(category|type|kind)$/i),
+    region: country !== "-1" ? ifParses(region, parseRegion) : "-1",
+    category: ifParses(find(/^(category|type|kind)$/i), parseCategory),
     status: find(/^(status|list|visited|been)$/i),
     date: find(/^(date|visited on|visit date)$/i),
     first: first !== "-1" ? first : String(exported[0] ?? -1),
