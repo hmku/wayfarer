@@ -1,8 +1,14 @@
 "use client";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { X, Upload, Check } from "lucide-react";
-import { Journal, Place } from "@/lib/model";
-import { convertRows, initialMapping, Mapping, readCsv } from "@/lib/csv";
+import { Journal, location, Place } from "@/lib/model";
+import {
+  convertRows,
+  importTotalError,
+  initialMapping,
+  Mapping,
+  readCsv,
+} from "@/lib/csv";
 import { dialogClosed, dialogOpened, dialogPlace } from "./dialog-focus";
 import { statusLabel } from "./table-format";
 
@@ -357,7 +363,7 @@ export function ImportForm({
   );
   const additions = useMemo(() => {
     const key = (p: Place) =>
-      `${p.name.toLowerCase()}|${p.country.toLowerCase()}`;
+      `${p.name.toLowerCase()}|${location(p).toLowerCase()}`;
     const existing = new Set(journal.places.map(key));
     const unique = new Map<string, Place>();
     preview?.places.forEach((p) => {
@@ -366,6 +372,8 @@ export function ImportForm({
     return [...unique.values()];
   }, [preview, journal.places]);
   const skipped = (preview?.places.length || 0) - additions.length;
+  const totalError = importTotalError(journal.places.length, additions.length);
+  const errors = [...(preview?.errors || []), ...(totalError ? [totalError] : [])];
   function updateMapping(next: Mapping) {
     setMapping(next);
     setSaveError("");
@@ -458,13 +466,13 @@ export function ImportForm({
               </div>
             ))}
           </div>
-          {preview?.errors.length ? (
+          {errors.length ? (
             <ErrorNotice
               as="p"
               message={
-                preview.errors.slice(0, 3).join(" ") +
-                (preview.errors.length > 3
-                  ? ` (+${preview.errors.length - 3} more)`
+                errors.slice(0, 3).join(" ") +
+                (errors.length > 3
+                  ? ` (+${errors.length - 3} more)`
                   : "")
               }
             />
@@ -475,7 +483,7 @@ export function ImportForm({
               busy ||
               importing ||
               !additions.length ||
-              !!preview?.errors.length
+              !!errors.length
             }
             onClick={async () => {
               setSaveError("");
