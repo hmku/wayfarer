@@ -12,7 +12,7 @@ export default defineConfig({
     baseURL: "http://localhost:3001",
     headless: true,
     launchOptions: {
-      executablePath: "/usr/bin/chromium",
+      executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
       args: ["--no-sandbox", "--disable-dev-shm-usage"],
     },
   },
