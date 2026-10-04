@@ -27,8 +27,7 @@ export async function readJournal(): Promise<{
       throw e;
     }
   }
-  if (!process.env.BLOB_READ_WRITE_TOKEN)
-    throw new Error("Private file storage is not connected yet.");
+  // The SDK supports connected-store OIDC credentials and legacy tokens.
   const result = await get(pathname, { access: "private", useCache: false });
   if (!result) return { journal: emptyJournal(), revision: "new" };
   if (result.statusCode !== 200 || !result.stream)

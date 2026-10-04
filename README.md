@@ -20,7 +20,7 @@ Local development saves to `data/journal.json`. That file and all environment fi
 
 1. Push this project to an empty **private** GitHub repository and import it into Vercel as a Next.js project.
 2. Generate a shared key with `npm run setup`, or use `node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"`. Set `JOURNAL_KEY` as a sensitive production environment variable in Vercel. It must be at least 32 characters. Use the generated random key, not a memorable password. Do not prefix it with `NEXT_PUBLIC_`.
-3. Create a **private** Vercel Blob store and connect it to the production environment. Vercel supplies `BLOB_READ_WRITE_TOKEN` to the server. Do not use a public Blob store or a client upload token.
+3. Create a **private** Vercel Blob store and connect it to the production environment. Vercel supplies `BLOB_STORE_ID`; the server uses Vercel's short-lived OIDC credentials automatically. Older connections using `BLOB_READ_WRITE_TOKEN` also work. Do not use a public Blob store or a client upload token.
 4. Deploy or redeploy after connecting storage and setting the key. Do not set `LOCAL_FILE_STORAGE` in Vercel. The app deliberately refuses to use the ephemeral deployment filesystem for persistence.
 5. Unlock the production URL on both phones with the same shared key. Set your names in journal settings and import the Travel CSV.
 
