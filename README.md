@@ -42,6 +42,15 @@ Private files are read only by server routes after authorization. Journal and se
 
 Writes use Blob ETags to reject stale revisions (the SDK's typed precondition error, plus its "already exists" message when two first saves race). When two people edit at once, the second save shows a conflict and keeps the draft open. Detail edits can refresh and merge with the latest journal; comparisons must refresh and restart because the candidate order may have changed. CSV exports include current scores and original imported ratings; private Blob is durable storage, not a versioned backup system. File storage suits a small journal; Vercel Blob may bill usage under your hosting plan.
 
+## Everyday use
+
+- **Moving a wishlist place to Been** asks for the visit date (today by default; clear it to leave the date blank). The details stay open so you can rank it right away. Moving resets that place's personal rankings.
+- **Undo**: after deleting or moving a destination, the confirmation offers Undo for a few seconds. It restores the place and its position in both rankings. If your partner saved in the meantime, refresh and repeat.
+- **Countries / regions**: tap the count in the summary to see visited and wishlist counts per location, and pick one to filter the list. Remove the filter with the chip's ×.
+- **Backup and restore**: Settings → **Download backup** saves the complete journal, including tie groups, as JSON. **Restore from backup** replaces the whole journal after a confirmation. Use this before large imports or edits; CSV export is for spreadsheets.
+- **Keyboard shortcuts** on the main list: `/` search, `N` add, `1` / `2` switch lists. In comparisons: `←` / `→` choose, `T` or `=` tie, `Backspace` back.
+- The app follows your system light or dark appearance.
+
 ## Comparison rankings
 
 Open a destination, then choose **Adjust** or **Rank** under your name. Pick the destination you prefer in each side-by-side comparison; **Too close to call** creates a tie. Binary search narrows the insertion position in a few comparisons. Back undoes a choice; nothing is saved until **Save ranking**. Visited comparisons only use visited destinations. Wishlist comparisons ask where you would rather go. Each person and each category has an independent order.
@@ -84,7 +93,7 @@ npm run build
 npm test
 ```
 
-The browser tests require Chromium at `/usr/bin/chromium` (adjust `playwright.config.ts` for another installation). Tests launch a separate server on port 3001 and create an isolated temporary journal, leaving local and production travel files untouched. They cover unauthorized reads, CSRF rejection, cookie tampering, validation, concurrent writes, mobile editing, list switching, reload persistence, CSV deduplication/import/export, and locking. The `tests/server-*.spec.ts` files add unit tests for ranking seeding, CSV dates/limits/export, journal validation, and the login limiter, plus API checks for 429 responses, body limits, and cache headers.
+The browser tests use Chromium at `/usr/bin/chromium`; set `CHROMIUM_PATH` to use another installation and `E2E_PORT` to change the test server port (default 3001). Tests launch a separate server on port 3001 and create an isolated temporary journal, leaving local and production travel files untouched. They cover unauthorized reads, CSRF rejection, cookie tampering, validation, concurrent writes, mobile editing, list switching, reload persistence, CSV deduplication/import/export, and locking. The `tests/server-*.spec.ts` files add unit tests for ranking seeding, CSV dates/limits/export, journal validation, and the login limiter, plus API checks for 429 responses, body limits, and cache headers.
 
 ## Credits
 
