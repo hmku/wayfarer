@@ -38,13 +38,18 @@ export async function POST(request: Request) {
       503,
     );
   const address = clientAddress(request);
-  const wait = loginLimiter.retryAfter(address);
-  if (wait > 0) return tooManyAttempts(wait);
+  // Cheap early rejection before reading the body.
+  const earlyWait = loginLimiter.retryAfter(address);
+  if (earlyWait > 0) return tooManyAttempts(earlyWait);
   // Oversized or unreadable bodies are treated like a missing key.
   const body = await readBody(request, 1000).then(parseObject, () => null);
   const key = body?.key;
   if (typeof key !== "string" || !key)
     return reply({ error: "Please enter your shared key." }, 400);
+  // Check again with no await before recording the result, so concurrent
+  // requests cannot all pass the early check and guess in parallel.
+  const wait = loginLimiter.retryAfter(address);
+  if (wait > 0) return tooManyAttempts(wait);
   if (key.length > 256 || !passwordMatches(key)) {
     loginLimiter.fail(address);
     return reply(

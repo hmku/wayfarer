@@ -11,7 +11,7 @@ export type Sort = { order: SortOrder; person: ScorePerson };
 
 export const defaultSort: Sort = { order: "score", person: "together" };
 
-export const dateOrders: SortOrder[] = ["recent", "oldest"];
+const dateOrders: SortOrder[] = ["recent", "oldest"];
 
 /** Visit-date sorts are meaningless for the wishlist; fall back to score. */
 export function effectiveSort(sort: Sort, tab: Tab): Sort {

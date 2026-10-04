@@ -182,7 +182,7 @@ export function ListToolbar({
         </label>
         <button
           className="subtle reorder-toggle"
-          disabled={!loaded || busy || !canReorder}
+          disabled={!loaded || busy || (!reordering && !canReorder)}
           onClick={onToggleReorder}
         >
           {reordering ? "Done" : "Reorder"}

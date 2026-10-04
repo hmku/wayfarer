@@ -388,7 +388,7 @@ test("delete asks for confirmation and can be cancelled", async ({ page }) => {
   await page.getByRole("button", { name: "Rome, Europe", exact: true }).click();
   const dialog = page.getByRole("dialog");
   await dialog.getByRole("button", { name: "Delete", exact: true }).click();
-  await expect(dialog).toContainText("cannot be undone");
+  await expect(dialog).toContainText("You can undo right after");
   await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(
     dialog.getByRole("button", { name: "Delete", exact: true }),

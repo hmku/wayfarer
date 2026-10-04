@@ -14,7 +14,7 @@ function describe(j: Journal) {
   return `${c.total} destination${c.total === 1 ? "" : "s"} (${c.been} been, ${c.want} want to go)`;
 }
 
-export function backupFilename(date = new Date()) {
+function backupFilename(date = new Date()) {
   const day = [
     date.getFullYear(),
     String(date.getMonth() + 1).padStart(2, "0"),
@@ -75,7 +75,7 @@ export function SettingsModal({
   const [error, setError] = useState("");
   const [pending, setPending] = useState<{ name: string; journal: Journal }>();
   return (
-    <Modal title="Settings" onClose={onClose}>
+    <Modal title="Settings" onClose={onClose} busy={busy}>
       <form
         onSubmit={async (e) => {
           e.preventDefault();

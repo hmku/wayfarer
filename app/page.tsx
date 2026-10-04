@@ -50,7 +50,7 @@ function isTyping(target: EventTarget | null) {
 }
 
 export default function Home() {
-  const [modal, setModal] = useState<ModalKind | null>(null);
+  const [requestedModal, setModal] = useState<ModalKind | null>(null);
   const [reordering, setReordering] = useState(false);
   const {
     session,
@@ -71,12 +71,10 @@ export default function Home() {
     onSessionReset: () => {
       setModal(null);
       setReordering(false);
+      setSort(defaultSort);
       clearNotice();
     },
   });
-  const { notice, show: showNotice, clear: clearNotice } = useNotice(
-    modal !== null,
-  );
   const [tab, setTab] = useState<Tab>("been");
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("");
@@ -86,8 +84,6 @@ export default function Home() {
   const [person, setPerson] = useState<Person>(0);
   const [comparisonKey, setComparisonKey] = useState(0);
   const searchRef = useRef<HTMLInputElement>(null);
-  // Set when a move should leave the details dialog open on the moved place.
-
   const activeSort = effectiveSort(sort, tab);
   const { order, person: scorePerson } = activeSort;
   const stats = useMemo(() => journalStats(journal), [journal]);
@@ -107,6 +103,16 @@ export default function Home() {
     [journal, tab, order, scorePerson, query, activeCountry],
   );
   const currentPlace = journal.places.find((p) => p.id === place?.id);
+  // Place dialogs close themselves if their place disappears (e.g. a partner
+  // deleted it), so the page never sits in a modal state with nothing shown.
+  const modal =
+    (requestedModal === "details" || requestedModal === "compare") &&
+    !currentPlace
+      ? null
+      : requestedModal;
+  const { notice, show: showNotice, clear: clearNotice } = useNotice(
+    modal !== null,
+  );
 
   useEffect(() => {
     if (session !== "open") return;
@@ -191,11 +197,15 @@ export default function Home() {
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
+  function exitReorder() {
+    if (!reordering) return;
+    setReordering(false);
+    setSort(previousSort);
+  }
+
   function toggleReorder() {
-    if (reordering) {
-      setReordering(false);
-      setSort(previousSort);
-    } else {
+    if (reordering) exitReorder();
+    else {
       setPreviousSort(sort);
       setSort({
         order: "score",
@@ -436,8 +446,7 @@ export default function Home() {
             );
             setTab(nextStatus);
             // A move to Been keeps the dialog open so the place can be ranked.
-            if (nextStatus === "been") setPlace(moved);
-            else setModal(null);
+            if (nextStatus === "want") setModal(null);
           }}
           onDelete={async () => {
             const snapshot = snapshotPlace(journal, currentPlace.id);
@@ -481,9 +490,7 @@ export default function Home() {
           place={modal === "edit" ? place : undefined}
           defaultStatus={tab}
           busy={busy}
-          onRefresh={async () => {
-            await refresh();
-          }}
+          onRefresh={refresh}
           onClose={() => setModal(place ? "details" : null)}
           onSave={async (p) => {
             const found = journal.places.some((x) => x.id === p.id);
@@ -509,9 +516,7 @@ export default function Home() {
         <ImportForm
           journal={journal}
           busy={busy}
-          onRefresh={async () => {
-            await refresh();
-          }}
+          onRefresh={refresh}
           onClose={() => setModal(null)}
           onImport={async (places) => {
             await save({ ...journal, places: [...journal.places, ...places] });
@@ -534,7 +539,7 @@ export default function Home() {
             await save(backup);
             setQuery("");
             setCountry("");
-            setReordering(false);
+            exitReorder();
             showNotice("Journal restored from backup");
             setModal(null);
           }}
@@ -547,8 +552,7 @@ export default function Home() {
           onChoose={(c) => {
             setCountry(c.key);
             setQuery("");
-            setReordering(false);
-            if (reordering) setSort(previousSort);
+            exitReorder();
             // Show the list that actually has places for this location.
             if (c[tab] === 0 && c[tab === "been" ? "want" : "been"] > 0)
               setTab(tab === "been" ? "want" : "been");

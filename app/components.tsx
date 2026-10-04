@@ -151,7 +151,7 @@ export function PlaceForm({
   place?: Place;
   defaultStatus: "been" | "want";
   busy: boolean;
-  onRefresh: () => Promise<void>;
+  onRefresh: () => Promise<boolean>;
   onSave: (p: Place) => Promise<void>;
   onClose: () => void;
 }) {
@@ -294,8 +294,7 @@ export function PlaceForm({
           action="Refresh journal"
           busy={busy}
           onAction={async () => {
-            await onRefresh();
-            setError("");
+            if (await onRefresh()) setError("");
           }}
         />
         <div className="form-footer">
@@ -324,7 +323,7 @@ export function ImportForm({
 }: {
   journal: Journal;
   busy: boolean;
-  onRefresh: () => Promise<void>;
+  onRefresh: () => Promise<boolean>;
   onImport: (places: Place[]) => Promise<void>;
   onClose: () => void;
 }) {
@@ -509,8 +508,7 @@ export function ImportForm({
         action="Refresh journal"
         busy={busy}
         onAction={async () => {
-          await onRefresh();
-          setSaveError("");
+          if (await onRefresh()) setSaveError("");
         }}
       />
     </Modal>

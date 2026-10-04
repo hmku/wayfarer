@@ -185,7 +185,7 @@ export function PlaceDetails({
       <div className="dialog-delete-row">
         {confirmDelete && (
           <p className="dialog-delete-prompt" id="delete-prompt">
-            Delete {place.name} from both lists? This cannot be undone.
+            Delete {place.name} from both lists? You can undo right after.
           </p>
         )}
         <div className="detail-actions">

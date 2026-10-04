@@ -5,14 +5,14 @@ import { emptyJournal, Journal } from "@/lib/model";
 export type Session = "loading" | "locked" | "open";
 
 /** A load whose result was discarded because newer state exists. */
-export class StaleLoad extends Error {
+class StaleLoad extends Error {
   constructor() {
     super("The journal changed while refreshing. Please try again.");
   }
 }
 
 /** Parse a JSON body without throwing on HTML/empty error pages. */
-export async function readJson(r: Response): Promise<Record<string, unknown>> {
+async function readJson(r: Response): Promise<Record<string, unknown>> {
   try {
     const data = await r.json();
     return data && typeof data === "object" ? data : {};
@@ -21,7 +21,7 @@ export async function readJson(r: Response): Promise<Record<string, unknown>> {
   }
 }
 
-export function responseError(r: Response, data: Record<string, unknown>) {
+function responseError(r: Response, data: Record<string, unknown>) {
   if (typeof data.error === "string" && data.error) return data.error;
   if (r.status === 401) return "Your session expired. Unlock the journal again.";
   if (r.status === 409)
