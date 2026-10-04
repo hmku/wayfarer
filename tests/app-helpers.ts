@@ -47,7 +47,7 @@ export async function writeJournal(page: Page, journal: Journal) {
 
 export async function open(page: Page) {
   await page.goto("/");
-  await expect(page.getByRole("heading", { name: "Destinations" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Destinations", exact: true })).toBeVisible();
   await expect(page.getByRole("tabpanel")).not.toContainText("Loading…");
 }
 

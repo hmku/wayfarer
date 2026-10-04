@@ -63,13 +63,26 @@ export function dialogClosed() {
   openCount = Math.max(0, openCount - 1);
   if (openCount > 0) return;
   if (restoreTimer !== undefined) clearTimeout(restoreTimer);
+  // Where focus is as the dialog closes (native <dialog> restoration may
+  // already have moved it). If it moves elsewhere before the timer runs, the
+  // user or the page chose a new focus (e.g. a key press right after Escape);
+  // restoring then would steal it.
+  const closing = document.activeElement;
   restoreTimer = setTimeout(() => {
     restoreTimer = undefined;
     if (openCount > 0) return;
-    const target =
-      (opener?.isConnected && !opener.matches(":disabled") ? opener : null) ??
-      (placeId ? rowControl(placeId) : null) ??
-      mainHeading();
+    const active = document.activeElement;
+    const movedOn =
+      active instanceof HTMLElement &&
+      active !== document.body &&
+      active !== closing &&
+      active.isConnected &&
+      !active.closest("dialog");
+    const target = movedOn
+      ? null
+      : ((opener?.isConnected && !opener.matches(":disabled") ? opener : null) ??
+        (placeId ? rowControl(placeId) : null) ??
+        mainHeading());
     opener = null;
     placeId = null;
     target?.focus();
