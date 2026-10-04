@@ -48,7 +48,7 @@ Check the preview before importing. Ratings must be numbers from 0–10. Blank r
 
 Existing destinations are skipped by case-insensitive destination + country. Imports add entries and never replace the journal. Invalid ratings or unrecognized statuses block import so you can fix the mapping. The header row must be the first nonempty row. Up to 2,000 destinations and 2 MB per import are supported. Export creates a standard CSV with both lists and formula-safe text.
 
-The linked Google Sheet required sign-in during the build. **No historical records were imported or invented.** Supply the Travel CSV to complete the initial data import.
+Import travel records through the authenticated app. Travel data is stored in private Blob storage, not this repository.
 
 ## Phone use
 

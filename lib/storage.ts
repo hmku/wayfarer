@@ -28,7 +28,12 @@ export async function readJournal(): Promise<{
     }
   }
   // The SDK supports connected-store OIDC credentials and legacy tokens.
-  const result = await get(pathname, { access: "private", useCache: false });
+  const result = await get(pathname, {
+    access: "private",
+    useCache: false,
+    // Compressed responses can expose a weak ETag that conditional writes reject.
+    headers: { "Accept-Encoding": "identity" },
+  });
   if (!result) return { journal: emptyJournal(), revision: "new" };
   if (result.statusCode !== 200 || !result.stream)
     throw new Error("Unable to read private journal.");
