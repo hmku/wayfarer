@@ -1,26 +1,38 @@
 import "server-only";
-import { get, put, BlobPreconditionFailedError } from "@vercel/blob";
+import {
+  get,
+  put,
+  BlobError,
+  BlobPreconditionFailedError,
+} from "@vercel/blob";
 import { readFile, writeFile, rename, mkdir } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import path from "node:path";
 import { emptyJournal, Journal, validateJournal } from "./model";
-const pathname = "wayfarer/journal.json";
-const local = () =>
+const BLOB_PATHNAME = "wayfarer/journal.json";
+const useLocalFile = () =>
   process.env.LOCAL_FILE_STORAGE === "1" && !process.env.VERCEL;
-const file = () =>
+const localJournalPath = () =>
   process.env.LOCAL_JOURNAL_PATH ||
   path.join(process.cwd(), "data", "journal.json");
-const hash = (s: string) => createHash("sha256").update(s).digest("hex");
+const sha256 = (s: string) => createHash("sha256").update(s).digest("hex");
 export class Conflict extends Error {}
-let queue: Promise<unknown> = Promise.resolve();
+// Serializes local read-check-write cycles so revision checks stay atomic.
+let localWrites: Promise<unknown> = Promise.resolve();
 export async function readJournal(): Promise<{
   journal: Journal;
   revision: string;
 }> {
-  if (local()) {
+  if (useLocalFile()) {
     try {
-      const raw = await readFile(/*turbopackIgnore: true*/ file(), "utf8");
-      return { journal: validateJournal(JSON.parse(raw)), revision: hash(raw) };
+      const raw = await readFile(
+        /*turbopackIgnore: true*/ localJournalPath(),
+        "utf8",
+      );
+      return {
+        journal: validateJournal(JSON.parse(raw)),
+        revision: sha256(raw),
+      };
     } catch (e) {
       if ((e as NodeJS.ErrnoException).code === "ENOENT")
         return { journal: emptyJournal(), revision: "new" };
@@ -28,7 +40,7 @@ export async function readJournal(): Promise<{
     }
   }
   // The SDK supports connected-store OIDC credentials and legacy tokens.
-  const result = await get(pathname, {
+  const result = await get(BLOB_PATHNAME, {
     access: "private",
     useCache: false,
     // Compressed responses can expose a weak ETag that conditional writes reject.
@@ -44,20 +56,20 @@ export async function readJournal(): Promise<{
 }
 export async function writeJournal(journal: Journal, revision: string) {
   const raw = JSON.stringify(journal);
-  if (local()) {
-    const operation = queue.then(async () => {
+  if (useLocalFile()) {
+    const operation = localWrites.then(async () => {
       const current = await readJournal();
       if (current.revision !== revision) throw new Conflict();
-      await mkdir(path.dirname(file()), { recursive: true });
-      await writeFile(`${file()}.tmp`, raw, { mode: 0o600 });
-      await rename(`${file()}.tmp`, file());
-      return hash(raw);
+      await mkdir(path.dirname(localJournalPath()), { recursive: true });
+      await writeFile(`${localJournalPath()}.tmp`, raw, { mode: 0o600 });
+      await rename(`${localJournalPath()}.tmp`, localJournalPath());
+      return sha256(raw);
     });
-    queue = operation.catch(() => {});
+    localWrites = operation.catch(() => {});
     return operation;
   }
   try {
-    const result = await put(pathname, raw, {
+    const result = await put(BLOB_PATHNAME, raw, {
       access: "private",
       addRandomSuffix: false,
       contentType: "application/json",
@@ -68,9 +80,13 @@ export async function writeJournal(journal: Journal, revision: string) {
     });
     return result.etag;
   } catch (e) {
+    // A stale ETag raises the typed precondition error. Creating a blob that
+    // already exists (allowOverwrite: false) has no typed error in the SDK; it
+    // arrives as a generic BlobError, so match its message as a fallback.
     if (
       e instanceof BlobPreconditionFailedError ||
-      (e instanceof Error && e.message.toLowerCase().includes("already exists"))
+      (e instanceof BlobError &&
+        e.message.toLowerCase().includes("already exists"))
     )
       throw new Conflict();
     throw e;
