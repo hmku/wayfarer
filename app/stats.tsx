@@ -1,5 +1,5 @@
 "use client";
-import { Bookmark, ChevronRight, Globe2, MapPin } from "lucide-react";
+import { Bookmark, ChevronRight, MapPin } from "lucide-react";
 import { CountryCount } from "@/lib/stats";
 import { Modal } from "./components";
 
@@ -17,18 +17,12 @@ export function Stats({
   return (
     <section className="stats" aria-label="Travel summary">
       <div>
-        <span className="stat-icon">
-          <MapPin size={20} />
-        </span>
         <div>
           <strong>{been}</strong>
           <span>Visited</span>
         </div>
       </div>
       <div>
-        <span className="stat-icon">
-          <Globe2 size={20} />
-        </span>
         <button
           type="button"
           className="stat-button"
@@ -41,9 +35,6 @@ export function Stats({
         </button>
       </div>
       <div>
-        <span className="stat-icon">
-          <Bookmark size={20} />
-        </span>
         <div>
           <strong>{want}</strong>
           <span>Wishlist</span>
