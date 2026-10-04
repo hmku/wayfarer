@@ -7,6 +7,8 @@ const statuses: Status[] = ["been", "want"];
 export const placeFields = [
   "name",
   "country",
+  "category",
+  "region",
   "status",
   "date",
   "notes",
@@ -57,6 +59,8 @@ const same = (a: unknown, b: unknown) =>
 function getField(p: Place, field: PlaceField): FieldValue {
   if (field === "rating0") return p.ratings[0];
   if (field === "rating1") return p.ratings[1];
+  // Unset optional fields read as "" so clearing and never-set compare equal.
+  if (field === "category" || field === "region") return p[field] ?? "";
   return p[field];
 }
 
@@ -65,6 +69,10 @@ function setField(p: Place, field: PlaceField, value: FieldValue): Place {
     const ratings: Place["ratings"] = [...p.ratings];
     ratings[field === "rating0" ? 0 : 1] = value as number | null;
     return { ...p, ratings };
+  }
+  if ((field === "category" || field === "region") && !value) {
+    const { [field]: _, ...rest } = p;
+    return rest;
   }
   return { ...p, [field]: value };
 }

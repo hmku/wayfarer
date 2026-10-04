@@ -1,7 +1,13 @@
+import { Category, inferRegion, isCategory, isRegion, Region } from "./regions";
+
 export type Place = {
   id: string;
   name: string;
   country: string;
+  /** Omitted when not chosen. */
+  category?: Category;
+  /** Omitted when not chosen; regionOf() then infers it from the country. */
+  region?: Region;
   status: "been" | "want";
   date: string;
   notes: string;
@@ -35,6 +41,9 @@ export function isIsoDate(value: string) {
     parsed.toISOString().slice(0, 10) === value
   );
 }
+// Unset optional choices may arrive as undefined or "".
+const optional = (value: unknown, valid: (v: unknown) => boolean) =>
+  value === undefined || value === "" || valid(value);
 export function validateJournal(input: unknown): Journal {
   if (!input || typeof input !== "object") throw new Error("Invalid journal.");
   const j = input as Journal;
@@ -63,6 +72,8 @@ export function validateJournal(input: unknown): Journal {
       !["been", "want"].includes(p.status) ||
       typeof p.notes !== "string" ||
       p.notes.length > LIMITS.notes ||
+      !optional(p.category, isCategory) ||
+      !optional(p.region, isRegion) ||
       typeof p.date !== "string" ||
       (p.date !== "" && !isIsoDate(p.date)) ||
       !Array.isArray(p.ratings) ||
@@ -104,6 +115,8 @@ export function validateJournal(input: unknown): Journal {
       name: p.name.trim(),
       // Keep the stored value; location() derives the Region: fallback for display.
       country: p.country.trim(),
+      ...(p.category ? { category: p.category } : {}),
+      ...(p.region ? { region: p.region } : {}),
       status: p.status,
       date: p.date,
       notes: p.notes,
@@ -126,6 +139,11 @@ export function location(p: Place) {
   return p.country.trim() || (region.length <= LIMITS.country ? region : "");
 }
 
+/** The place's region: chosen explicitly, or inferred from its location. */
+export function regionOf(p: Place): Region | undefined {
+  return p.region || inferRegion(location(p));
+}
+
 export function mergePlace(
   draft: Place,
   original: Place,
@@ -135,7 +153,15 @@ export function mergePlace(
     ...latest,
     ratings: [...latest.ratings] as [number | null, number | null],
   };
-  for (const field of ["name", "country", "status", "date", "notes"] as const) {
+  for (const field of [
+    "name",
+    "country",
+    "category",
+    "region",
+    "status",
+    "date",
+    "notes",
+  ] as const) {
     if (draft[field] !== original[field])
       Object.assign(merged, { [field]: draft[field] });
   }
