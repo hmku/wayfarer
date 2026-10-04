@@ -46,8 +46,11 @@ test("stats show each person's category and region preferences", async ({
   // Regions: rows without ranked places are hidden.
   const harrisonRegions = panel(page, "Harrison, by region");
   await expect(harrisonRegions).toContainText("Harrison’s favourite region: Oceania (8.3)");
-  await expect(harrisonRegions.getByRole("listitem")).toHaveCount(4);
+  await expect(harrisonRegions.getByRole("listitem")).toHaveCount(5);
   await expect(harrisonRegions).not.toContainText("Africa");
+  // Lisbon has a country but no stored region, so it is not counted.
+  await expect(page.getByText("1 of 8 has no region yet.", { exact: false })).toBeVisible();
+  await expect(harrisonRegions).toContainText("1 place ranked without a region is not counted.");
   // Maya never ranked the Fiji place, the only Oceania one.
   await expect(panel(page, "Maya, by region")).not.toContainText("Oceania");
 

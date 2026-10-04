@@ -8,13 +8,31 @@ export const statsJournal: Journal = {
   version: 1,
   people: ["Harrison", "Maya"],
   places: [
-    with_(place("st-bali", "Uluwatu", "Indonesia"), { category: "beach" }),
-    with_(place("st-tulum", "Tulum", "Mexico"), { category: "beach" }),
-    with_(place("st-rome", "Rome", "Italy"), { category: "city" }),
-    with_(place("st-tokyo", "Tokyo", "Japan"), { category: "city" }),
-    with_(place("st-banff", "Banff", "Canada"), { category: "nature" }),
-    with_(place("st-dolo", "Dolomites", "Italy"), { category: "nature" }),
-    // No category; region inferred from the country.
+    with_(place("st-bali", "Uluwatu", "Indonesia"), {
+      category: "beach",
+      region: "asia",
+    }),
+    with_(place("st-tulum", "Tulum", "Mexico"), {
+      category: "beach",
+      region: "caribbean",
+    }),
+    with_(place("st-rome", "Rome", "Italy"), {
+      category: "city",
+      region: "europe",
+    }),
+    with_(place("st-tokyo", "Tokyo", "Japan"), {
+      category: "city",
+      region: "asia",
+    }),
+    with_(place("st-banff", "Banff", "Canada"), {
+      category: "nature",
+      region: "west-coast",
+    }),
+    with_(place("st-dolo", "Dolomites", "Italy"), {
+      category: "nature",
+      region: "europe",
+    }),
+    // No category and no region: the country does not imply one.
     place("st-lisbon", "Lisbon", "Portugal"),
     // Chosen region, no country.
     with_(place("st-fiji", "Coral Coast", ""), {

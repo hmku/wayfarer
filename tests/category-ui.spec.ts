@@ -15,18 +15,22 @@ const journal: Journal = {
   version: 1,
   people: ["Alex", "Sam"],
   places: [
-    { ...place("k-tulum", "Tulum", "Mexico"), category: "beach" },
+    {
+      ...place("k-tulum", "Tulum", "Mexico"),
+      category: "beach",
+      region: "caribbean",
+    },
     {
       ...place("k-banff", "Banff", "Canada"),
       category: "nature",
-      region: "north-america",
+      region: "west-coast",
     },
     { ...place("k-paris", "Paris", "France"), category: "city" },
     place("k-oslo", "Oslo", ""),
   ],
 };
 
-test("the region is automatic from the country unless one is picked", async ({
+test("the region is not set unless one is picked, whatever the country", async ({
   page,
 }) => {
   // open() needs a non-empty list; keep the Been tab populated.
@@ -42,30 +46,44 @@ test("the region is automatic from the country unless one is picked", async ({
   await expect(dialog.getByRole("radio", { name: "Beach" })).toBeChecked();
   await dialog.getByLabel("Country").fill("Japan");
   await expect(region).toHaveValue("");
-  await expect(shown).toHaveText("Automatic (Asia)");
+  await expect(shown).toHaveText("Not set");
   await dialog.getByLabel("Country").fill("Kyoto, Peru");
-  await expect(shown).toHaveText("Automatic (South America)");
-  await dialog.getByLabel("Country").fill("Nowhere");
-  await expect(shown).toHaveText("Automatic (from country)");
+  await expect(region).toHaveValue("");
+  await expect(shown).toHaveText("Not set");
   await dialog.getByLabel("Country").fill("Japan");
+  // The fixed list of regions, after "Not set".
+  await expect(region.locator("option")).toHaveText([
+    "Not set",
+    "West Coast",
+    "Central",
+    "East Coast",
+    "Caribbean",
+    "South America",
+    "Europe",
+    "Africa",
+    "Asia",
+    "Oceania",
+  ]);
   await dialog.getByRole("button", { name: "Save destination" }).click();
 
   const details = page.getByRole("dialog", { name: "Kyoto" });
   await expect(details.locator('[data-tag="category"]')).toHaveText("Beach");
-  await expect(details.locator('[data-tag="region"]')).toHaveText("Asia");
+  // No region is shown or stored just because the country is Japan.
+  await expect(details.locator('[data-tag="region"]')).toHaveCount(0);
+  await expect(details).toContainText("Japan");
   let saved = (await readJournal(page)).journal.places.find(
     (p) => p.name === "Kyoto",
   )!;
   expect(saved.category).toBe("beach");
-  // A suggested region is not stored; it is inferred from the country.
+  // No region is inferred from the country.
   expect(saved.region).toBeUndefined();
 
-  // Editing shows the automatic region; a manual pick sticks.
+  // Editing still shows Not set; a manual pick sticks.
   await details.getByRole("button", { name: "Edit details" }).click();
   const edit = page.getByRole("dialog", { name: "Edit destination" });
   await expect(edit.getByLabel("Region")).toHaveValue("");
   await expect(edit.getByLabel("Region").locator("option:checked")).toHaveText(
-    "Automatic (Asia)",
+    "Not set",
   );
   await edit.getByLabel("Region").selectOption("oceania");
   await edit.getByLabel("Country").fill("Italy");
@@ -79,8 +97,11 @@ test("the region is automatic from the country unless one is picked", async ({
   expect(saved.region).toBe("oceania");
   expect(saved.country).toBe("Italy");
   expect(saved.category).toBeUndefined();
+  await expect(
+    page.getByRole("dialog", { name: "Kyoto" }).locator('[data-tag="region"]'),
+  ).toHaveText("Oceania");
 
-  // Choosing Automatic again clears the pick, so it follows the country.
+  // Choosing Not set again clears the pick; nothing comes from the country.
   await page
     .getByRole("dialog", { name: "Kyoto" })
     .getByRole("button", { name: "Edit details" })
@@ -89,10 +110,13 @@ test("the region is automatic from the country unless one is picked", async ({
   await expect(again.getByLabel("Region")).toHaveValue("oceania");
   await again.getByLabel("Region").selectOption("");
   await expect(again.getByLabel("Region").locator("option:checked")).toHaveText(
-    "Automatic (Europe)",
+    "Not set",
   );
   await again.getByRole("button", { name: "Save destination" }).click();
   await expect(page.getByRole("dialog", { name: "Kyoto" })).toBeVisible();
+  await expect(
+    page.getByRole("dialog", { name: "Kyoto" }).locator('[data-tag="region"]'),
+  ).toHaveCount(0);
   saved = (await readJournal(page)).journal.places.find(
     (p) => p.name === "Kyoto",
   )!;
@@ -114,8 +138,12 @@ test("the table shows category and region, and filters by category", async ({
     "Beach",
   );
   await expect(tulum.locator(".location-col")).toHaveText(
-    "MexicoNorth America",
+    "MexicoCaribbean",
   );
+  // A country without a stored region shows just the country.
+  await expect(
+    rows(page).filter({ hasText: "Paris" }).locator(".location-col"),
+  ).toHaveText("France");
   // No country or region: an em dash, as before.
   await expect(
     rows(page).filter({ hasText: "Oslo" }).locator(".location-col"),
@@ -141,6 +169,6 @@ test("the table shows category and region, and filters by category", async ({
   await expect(details.locator(".category-badge")).toHaveText("Been");
   await expect(details.locator('[data-tag="category"]')).toHaveText("Nature");
   await expect(details.locator('[data-tag="region"]')).toHaveText(
-    "North America",
+    "West Coast",
   );
 });

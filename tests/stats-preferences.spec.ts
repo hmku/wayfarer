@@ -17,10 +17,10 @@ const journal: Journal = {
   version: 1,
   people: ["Alex", "Sam"],
   places: [
-    place("a", { category: "beach", country: "Spain" }),
-    place("b", { category: "city", country: "Kyoto, Japan" }),
-    // No country, so no region can be inferred.
-    place("c", { category: "city" }),
+    place("a", { category: "beach", country: "Spain", region: "europe" }),
+    place("b", { category: "city", country: "Kyoto, Japan", region: "asia" }),
+    // A country but no stored region: regions are never inferred.
+    place("c", { category: "city", country: "Mexico" }),
     // Unranked by both, with no category.
     place("d", { country: "Peru" }),
     place("e", { category: "beach", region: "oceania", status: "want" }),
@@ -40,7 +40,8 @@ test("averages each person's scores per category and region", () => {
     status: "been",
     total: 4,
     withoutCategory: 1,
-    withoutRegion: 1,
+    // c and d have countries but no stored region.
+    withoutRegion: 2,
   });
   const [alex, sam] = prefs.people;
   expect(byKey(alex.categories)).toEqual({
@@ -77,8 +78,17 @@ test("Together averages the available personal scores per place", () => {
 test("buckets keep a fixed order and cover every category and region", () => {
   const { people } = preferences(journal);
   expect(people[0].categories.map((b) => b.key)).toEqual(["city", "nature", "beach"]);
-  expect(people[0].regions).toHaveLength(8);
-  expect(people[0].regions[0].key).toBe("europe");
+  expect(people[0].regions.map((b) => b.key)).toEqual([
+    "west-coast",
+    "central",
+    "east-coast",
+    "caribbean",
+    "south-america",
+    "europe",
+    "africa",
+    "asia",
+    "oceania",
+  ]);
 });
 
 test("the wishlist is separate and unranked places only count as missing", () => {

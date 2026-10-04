@@ -255,7 +255,6 @@ export function exportCsv(j: Journal) {
         p.name,
         p.country,
         p.category ? categoryLabels[p.category] : "",
-        // The effective region, so inferred ones survive a round trip.
         regionName(p),
         p.status === "been" ? "Been" : "Want to go",
         p.date,

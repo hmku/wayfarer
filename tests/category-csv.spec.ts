@@ -6,8 +6,8 @@ test("imports category and region labels case-insensitively", () => {
   const { headers, rows } = readCsv(
     [
       "Destination,Country,Category,Region",
-      "Tulum,Mexico,beach,caribbean and central america",
-      "Banff,Canada,NATURE,North America",
+      "Tulum,Mexico,beach,CARIBBEAN",
+      "Banff,Canada,NATURE,west coast",
       "Kyoto,Japan,,",
       "Lisbon,Portugal,City,europe",
     ].join("\n"),
@@ -19,8 +19,8 @@ test("imports category and region labels case-insensitively", () => {
   expect(
     places.map((p) => [p.name, p.category ?? null, p.region ?? null]),
   ).toEqual([
-    ["Tulum", "beach", "caribbean-central-america"],
-    ["Banff", "nature", "north-america"],
+    ["Tulum", "beach", "caribbean"],
+    ["Banff", "nature", "west-coast"],
     // Blank cells leave the fields unset rather than empty.
     ["Kyoto", null, null],
     ["Lisbon", "city", "europe"],
@@ -50,7 +50,7 @@ test("a lone Region column still maps to the free-text location", () => {
   expect(places[0].region).toBeUndefined();
 });
 
-test("export writes category and effective region, and round-trips", () => {
+test("export writes category and stored region only, and round-trips", () => {
   const base = { status: "want", date: "", notes: "" } as const;
   const j: Journal = {
     version: 1,
@@ -62,10 +62,10 @@ test("export writes category and effective region, and round-trips", () => {
         name: "Tulum",
         country: "Mexico",
         category: "beach",
-        region: "caribbean-central-america",
+        region: "caribbean",
         ratings: [null, null],
       },
-      // No region stored: the export uses the one inferred from the country.
+      // No region stored: the export leaves it blank, even with a country.
       { ...base, id: "b", name: "Kyoto", country: "Japan", ratings: [null, null] },
       { ...base, id: "c", name: "Somewhere", country: "", ratings: [null, null] },
     ],
@@ -79,17 +79,18 @@ test("export writes category and effective region, and round-trips", () => {
     "Status",
   ]);
   expect(rows.map((r) => r.slice(0, 4))).toEqual([
-    ["Tulum", "Mexico", "Beach", "Caribbean & Central America"],
-    ["Kyoto", "Japan", "", "Asia"],
+    ["Tulum", "Mexico", "Beach", "Caribbean"],
+    ["Kyoto", "Japan", "", ""],
     ["Somewhere", "", "", ""],
   ]);
   const { places, errors } = convertRows(rows, initialMapping(headers));
   expect(errors).toEqual([]);
   expect(places.map((p) => [p.category ?? null, p.region ?? null])).toEqual([
-    ["beach", "caribbean-central-america"],
-    [null, "asia"],
+    ["beach", "caribbean"],
+    [null, null],
     [null, null],
   ]);
+  expect("region" in places[1]).toBe(false);
 });
 
 test("free-text Region and Type columns are not auto-mapped", () => {
