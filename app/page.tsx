@@ -2,6 +2,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Bookmark, Check, Compass, MapPin, Plus, Upload } from "lucide-react";
 import { Journal, mergePlace, Place } from "@/lib/model";
+import { Category } from "@/lib/regions";
 import { exportCsv } from "@/lib/csv";
 import {
   clearRatings,
@@ -79,6 +80,7 @@ export default function Home() {
   const [tab, setTab] = useState<Tab>("been");
   const [query, setQuery] = useState("");
   const [country, setCountry] = useState("");
+  const [category, setCategory] = useState<Category | "">("");
   const [sort, setSort] = useState<Sort>(defaultSort);
   const [previousSort, setPreviousSort] = useState<Sort>(defaultSort);
   const [place, setPlace] = useState<Place>();
@@ -100,8 +102,9 @@ export default function Home() {
         { order, person: scorePerson },
         query,
         activeCountry,
+        category,
       ),
-    [journal, tab, order, scorePerson, query, activeCountry],
+    [journal, tab, order, scorePerson, query, activeCountry, category],
   );
   const currentPlace = journal.places.find((p) => p.id === place?.id);
   // Place dialogs close themselves if their place disappears (e.g. a partner
@@ -195,6 +198,7 @@ export default function Home() {
   function goHome() {
     setQuery("");
     setCountry("");
+    setCategory("");
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
 
@@ -214,6 +218,7 @@ export default function Home() {
       });
       setQuery("");
       setCountry("");
+      setCategory("");
       setReordering(true);
     }
   }
@@ -229,7 +234,7 @@ export default function Home() {
       />
     );
 
-  const filtered = Boolean(query.trim() || activeCountry);
+  const filtered = Boolean(query.trim() || activeCountry || category);
   return (
     <div className="app-shell">
       <AppHeader
@@ -268,6 +273,7 @@ export default function Home() {
             sort={activeSort}
             query={query}
             country={countryLabel}
+            category={category}
             reordering={reordering}
             canReorder={view.total > 0}
             loaded={loaded}
@@ -279,6 +285,7 @@ export default function Home() {
             onReorderPerson={(p) => setSort({ order: "score", person: p })}
             onQuery={setQuery}
             onClearCountry={() => setCountry("")}
+            onCategory={setCategory}
             onToggleReorder={toggleReorder}
             onImport={() => setModal("import")}
             onExport={download}
@@ -337,9 +344,10 @@ export default function Home() {
                         onClick={() => {
                           setQuery("");
                           setCountry("");
+                          setCategory("");
                         }}
                       >
-                        {query.trim() && activeCountry
+                        {query.trim() && (activeCountry || category)
                           ? "Clear search and filter"
                           : query.trim()
                             ? "Clear search"

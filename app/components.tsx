@@ -1,7 +1,16 @@
 "use client";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { X, Upload, Check } from "lucide-react";
-import { Journal, location, Place } from "@/lib/model";
+import { Journal, location, Place, regionOf } from "@/lib/model";
+import {
+  categories,
+  Category,
+  categoryLabels,
+  inferRegion,
+  Region,
+  regionLabels,
+  regions,
+} from "@/lib/regions";
 import {
   convertRows,
   importTotalError,
@@ -11,6 +20,7 @@ import {
 } from "@/lib/csv";
 import { dialogClosed, dialogOpened, dialogPlace } from "./dialog-focus";
 import { statusLabel } from "./table-format";
+import { CategoryIcon } from "./place-kind";
 
 const DISCARD_MESSAGE = "Discard your unsaved changes?";
 
@@ -135,6 +145,8 @@ export function ErrorNotice({
 type Draft = {
   name: string;
   country: string;
+  category: Category | "";
+  region: Region | "";
   status: Place["status"];
   date: string;
   notes: string;
@@ -159,11 +171,22 @@ export function PlaceForm({
   const [status, setStatus] = useState<Place["status"]>(
     place?.status || defaultStatus,
   );
+  const [category, setCategory] = useState<Category | "">(
+    place?.category ?? "",
+  );
+  const [region, setRegion] = useState<Region | "">(
+    (place && regionOf(place)) || "",
+  );
+  // Until the user picks a region, it follows the Country field. A region
+  // stored on the place counts as picked.
+  const [regionPicked, setRegionPicked] = useState(Boolean(place?.region));
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const initial = useRef<Draft>({
     name: place?.name ?? "",
     country: place?.country ?? "",
+    category: place?.category ?? "",
+    region: (place && regionOf(place)) || "",
     status: place?.status || defaultStatus,
     date: place?.date ?? "",
     notes: place?.notes ?? "",
@@ -173,6 +196,8 @@ export function PlaceForm({
     return {
       name: String(f.get("name") ?? ""),
       country: String(f.get("country") ?? ""),
+      category,
+      region,
       status,
       date:
         status === "want"
@@ -199,6 +224,10 @@ export function PlaceForm({
         id: place?.id || crypto.randomUUID(),
         name: d.name.trim(),
         country: d.country.trim(),
+        ...(d.category ? { category: d.category } : {}),
+        // An auto-suggested region is left unset so it keeps following the
+        // country; regionOf() infers the same value.
+        ...(regionPicked && d.region ? { region: d.region } : {}),
         status: d.status,
         date: d.date,
         notes: d.notes,
@@ -256,15 +285,59 @@ export function PlaceForm({
             data-autofocus
           />
         </div>
-        <div className="field">
-          <label htmlFor="country">Country or region</label>
-          <input
-            id="country"
-            name="country"
-            maxLength={120}
-            defaultValue={place?.country}
-            placeholder="e.g. Japan"
-          />
+        <fieldset className="category-choice">
+          <legend>
+            Category <span className="optional">optional</span>
+          </legend>
+          {(["", ...categories] as const).map((c) => (
+            <label key={c || "none"}>
+              <input
+                type="radio"
+                name="category"
+                value={c}
+                checked={category === c}
+                onChange={() => setCategory(c)}
+              />
+              {c && <CategoryIcon category={c} size={15} />}
+              {c ? categoryLabels[c] : "None"}
+            </label>
+          ))}
+        </fieldset>
+        <div className="place-form-location">
+          <div className="field">
+            <label htmlFor="country">
+              Country <span className="optional">optional</span>
+            </label>
+            <input
+              id="country"
+              name="country"
+              maxLength={120}
+              defaultValue={place?.country}
+              placeholder="e.g. Japan"
+              onChange={(e) => {
+                if (!regionPicked) setRegion(inferRegion(e.target.value) ?? "");
+              }}
+            />
+          </div>
+          <div className="field">
+            <label htmlFor="region">Region</label>
+            <select
+              id="region"
+              name="region"
+              value={region}
+              onChange={(e) => {
+                setRegion(e.target.value as Region | "");
+                setRegionPicked(true);
+              }}
+            >
+              <option value="">Not set</option>
+              {regions.map((r) => (
+                <option key={r} value={r}>
+                  {regionLabels[r]}
+                </option>
+              ))}
+            </select>
+          </div>
         </div>
         {status === "been" && (
           <div className="field">
@@ -383,7 +456,7 @@ export function ImportForm({
         <label htmlFor={"column-" + key}>{label}</label>
         <select
           id={"column-" + key}
-          value={mapping![key]}
+          value={mapping![key] ?? "-1"}
           onChange={(e) => updateMapping({ ...mapping!, [key]: e.target.value })}
         >
           <option value="-1">
@@ -420,6 +493,8 @@ export function ImportForm({
           <div className="form-grid">
             {select("name", "Destination column")}
             {select("country", "Country column")}
+            {select("category", "Category column")}
+            {select("region", "Region column")}
             {select("first", `Rating — ${journal.people[0]}`)}
             {select("second", `Rating — ${journal.people[1]}`)}
             {select("status", "List / status column")}

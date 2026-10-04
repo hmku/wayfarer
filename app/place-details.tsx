@@ -12,6 +12,7 @@ import {
 } from "@/lib/ranking";
 import { ErrorNotice, Modal } from "./components";
 import { formatScore, statusLabel, todayIso } from "./table-format";
+import { categoryLabel, CategoryIcon, regionLabel } from "./place-kind";
 
 export function PlaceDetails({
   journal,
@@ -65,7 +66,21 @@ export function PlaceDetails({
     <Modal title={place.name} onClose={onClose} busy={busy} placeId={place.id}>
       <div className="detail-meta">
         <span className="category-badge">{statusLabel(place.status)}</span>
-        <span>{location(place)}</span>
+        {place.category && (
+          <span className="place-tag" data-tag="category">
+            <CategoryIcon category={place.category} size={13} />
+            {categoryLabel(place)}
+          </span>
+        )}
+        {regionLabel(place) && (
+          <span className="place-tag" data-tag="region">
+            {regionLabel(place)}
+          </span>
+        )}
+        {location(place).toLowerCase() !==
+          regionLabel(place).toLowerCase() && (
+          <span>{location(place)}</span>
+        )}
       </div>
       <div className="detail-ratings">
         {journal.people.map((name, i) => {

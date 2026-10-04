@@ -131,7 +131,7 @@ test("mobile journal editing, both lists, CSV preview, export, and lock", async 
     .getByRole("button", { name: "Add a destination", exact: true })
     .click();
   await page.getByLabel("Destination", { exact: true }).fill("Kyoto");
-  await page.getByLabel("Country or region").fill("Japan");
+  await page.getByLabel("Country").fill("Japan");
   await page.getByLabel("Notes").fill("Gardens in the autumn");
   await page.getByRole("button", { name: "Save destination" }).click();
   await expect(
@@ -168,7 +168,7 @@ test("mobile journal editing, both lists, CSV preview, export, and lock", async 
   await expect(page.getByRole("button", { name: /Rome.*Italy/ })).toBeVisible();
   await page.getByRole("button", { name: /Lisbon.*Portugal/ }).click();
   await page.getByRole("button", { name: "Edit details" }).click();
-  await page.getByLabel("Country or region").fill("Portugal Coast");
+  await page.getByLabel("Country").fill("Portugal Coast");
   await login(api);
   const concurrent = await (await api.get("/api/journal")).json();
   concurrent.journal.places.find(

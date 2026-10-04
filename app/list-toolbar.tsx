@@ -1,6 +1,7 @@
 "use client";
 import { useRef } from "react";
 import { Bookmark, Download, MapPin, Search, Upload, X } from "lucide-react";
+import { categories, Category, categoryLabels } from "@/lib/regions";
 import { ScorePerson, Sort, sortValue, Tab } from "./journal-view";
 
 export const PANEL_ID = "destinations-panel";
@@ -14,6 +15,7 @@ export function ListToolbar({
   sort,
   query,
   country,
+  category,
   reordering,
   canReorder,
   loaded,
@@ -25,6 +27,7 @@ export function ListToolbar({
   onReorderPerson,
   onQuery,
   onClearCountry,
+  onCategory,
   onToggleReorder,
   onImport,
   onExport,
@@ -37,6 +40,8 @@ export function ListToolbar({
   query: string;
   /** Active country filter label, or "" for none. */
   country: string;
+  /** Category filter, or "" for all. */
+  category: Category | "";
   reordering: boolean;
   canReorder: boolean;
   loaded: boolean;
@@ -48,6 +53,7 @@ export function ListToolbar({
   onReorderPerson: (person: ScorePerson) => void;
   onQuery: (query: string) => void;
   onClearCountry: () => void;
+  onCategory: (category: Category | "") => void;
   onToggleReorder: () => void;
   onImport: () => void;
   onExport: () => void;
@@ -143,6 +149,20 @@ export function ListToolbar({
             </button>
           </span>
         )}
+        <select
+          className="category-filter"
+          aria-label="Filter by category"
+          value={category}
+          disabled={reordering}
+          onChange={(e) => onCategory(e.target.value as Category | "")}
+        >
+          <option value="">All categories</option>
+          {categories.map((c) => (
+            <option key={c} value={c}>
+              {categoryLabels[c]}
+            </option>
+          ))}
+        </select>
         <label className="sort-label">
           {reordering ? "Ranking" : "Sort by"}
           {reordering ? (

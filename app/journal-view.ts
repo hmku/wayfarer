@@ -1,5 +1,6 @@
 import { Journal, location, Place } from "@/lib/model";
 import { combinedScore, Person, scoreMap } from "@/lib/ranking";
+import { Category } from "@/lib/regions";
 import { countryKey } from "@/lib/stats";
 
 export type Tab = Place["status"];
@@ -53,6 +54,8 @@ export function deriveView(
   sort: Sort,
   query: string,
   country: string,
+  /** "" shows every category. */
+  category: Category | "" = "",
 ): JournalView {
   const first = scoreMap(journal, 0, tab);
   const second = scoreMap(journal, 1, tab);
@@ -106,6 +109,7 @@ export function deriveView(
   const needle = query.trim().toLowerCase();
   const list = (sort.order === "score" ? ranked : inTab.toSorted(compare[sort.order]))
     .filter((p) => !country || countryKey(location(p)) === country)
+    .filter((p) => !category || p.category === category)
     .filter(
       (p) =>
         !needle ||

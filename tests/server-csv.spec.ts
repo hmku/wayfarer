@@ -115,7 +115,7 @@ test("export adds a BOM, rounds scores, escapes only formula-like text, and re-i
   expect(csv).toContain(`"'=HYPERLINK(1)"`);
   expect(csv).toContain(`"'@home"`);
   expect(csv).toContain(`"'+44"`);
-  expect(csv).toMatch(/Oslo,,Been,,3\.3,3\.3,-5,7,5/);
+  expect(csv).toMatch(/Oslo,,,,Been,,3\.3,3\.3,-5,7,5/);
   expect(csv).not.toMatch(/\d\.\d{2,}/);
 
   const { headers, rows } = readCsv(csv);

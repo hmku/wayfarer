@@ -7,9 +7,15 @@ import {
   useState,
 } from "react";
 import { GripVertical } from "lucide-react";
-import { location, Place } from "@/lib/model";
+import { Place } from "@/lib/model";
 import { combinedScore } from "@/lib/ranking";
 import { formatScore } from "./table-format";
+import {
+  categoryLabel,
+  CategoryIcon,
+  displayLocation,
+  regionLabel,
+} from "./place-kind";
 
 type Move = { targetId: string; anchorId: string; side: "before" | "after" };
 type Drag = {
@@ -167,6 +173,14 @@ export function RankingTable({
               scores[1].get(p.id),
             );
             const drop = drag?.move?.anchorId === p.id ? drag.move.side : "";
+            const where = displayLocation(p);
+            const region = regionLabel(p);
+            // Show the region under the country unless it says the same.
+            const subRegion =
+              region && region.toLowerCase() !== where.toLowerCase()
+                ? region
+                : "";
+            const kind = categoryLabel(p);
             return (
               <tr
                 key={p.id}
@@ -247,17 +261,29 @@ export function RankingTable({
                 <td>
                   <button
                     className="place-link"
-                    aria-label={`${p.name}${location(p) ? `, ${location(p)}` : ""}`}
+                    aria-label={[p.name, where, kind].filter(Boolean).join(", ")}
                     onClick={(e) => {
                       e.stopPropagation();
                       onOpen(p);
                     }}
                   >
                     <strong>{p.name}</strong>
-                    <span className="mobile-location">{location(p)}</span>
+                    {p.category && (
+                      <span className="category-icon" title={kind}>
+                        <CategoryIcon category={p.category} size={13} />
+                      </span>
+                    )}
+                    <span className="mobile-location">
+                      {[where, subRegion].filter(Boolean).join(" · ")}
+                    </span>
                   </button>
                 </td>
-                <td className="location-col">{location(p) || "—"}</td>
+                <td className="location-col">
+                  {where || "—"}
+                  {subRegion && (
+                    <span className="location-region">{subRegion}</span>
+                  )}
+                </td>
                 <td className="rating-col">
                   {formatScore(scores[0].get(p.id))}
                 </td>

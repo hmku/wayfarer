@@ -1,5 +1,13 @@
 import Papa from "papaparse";
-import { isIsoDate, Journal, LIMITS, Place } from "./model";
+import { isIsoDate, Journal, LIMITS, Place, regionOf } from "./model";
+import {
+  categories,
+  Category,
+  categoryLabels,
+  Region,
+  regionLabels,
+  regions,
+} from "./regions";
 import { scoreMap } from "./ranking";
 export type Mapping = {
   name: string;
@@ -9,8 +17,32 @@ export type Mapping = {
   first: string;
   second: string;
   notes: string;
+  /** Optional columns; "-1" or missing means none. */
+  category?: string;
+  region?: string;
   defaultStatus: "been" | "want";
 };
+// Accepts a label or id in any case ("Beach", "north america",
+// "Caribbean and Central America").
+const choice = <T extends string>(
+  values: readonly T[],
+  labels: Record<T, string>,
+) => {
+  const key = (text: string) =>
+    text
+      .toLowerCase()
+      .replace(/\s+and\s+/g, " & ")
+      .replace(/[\s_-]+/g, " ")
+      .trim();
+  const known = new Map<string, T>();
+  for (const v of values) {
+    known.set(key(v), v);
+    known.set(key(labels[v]), v);
+  }
+  return (text: string) => known.get(key(text));
+};
+const parseCategory = choice<Category>(categories, categoryLabels);
+const parseRegion = choice<Region>(regions, regionLabels);
 const count = (n: number) => n.toLocaleString("en-US");
 export function readCsv(text: string) {
   const parsed = Papa.parse<string[]>(text, { skipEmptyLines: "greedy" });
@@ -33,9 +65,14 @@ export function initialMapping(headers: string[]): Mapping {
   );
   const first = find(/^(rating 1|your rating|my rating|score 1)$/i);
   const second = find(/^(rating 2|partner rating|score 2)$/i);
+  const country = find(/^country$/i);
+  const region = find(/^region$/i);
   return {
     name: find(/^(destination|place|city|location|travel destination)$/i),
-    country: find(/^(country|region)$/i),
+    // A lone "Region" column is treated as free-text location, as before.
+    country: country !== "-1" ? country : region,
+    region: country !== "-1" ? region : "-1",
+    category: find(/^(category|type|kind)$/i),
     status: find(/^(status|list|visited|been)$/i),
     date: find(/^(date|visited on|visit date)$/i),
     first: first !== "-1" ? first : String(exported[0] ?? -1),
@@ -50,7 +87,7 @@ export function convertRows(
 ): { places: Place[]; errors: string[] } {
   const places: Place[] = [];
   const errors: string[] = [];
-  const cell = (row: string[], col: string) =>
+  const cell = (row: string[], col = "-1") =>
     col === "-1" ? "" : (row[Number(col)] || "").trim();
   for (let i = 0; i < rows.length; i++) {
     const row = rows[i];
@@ -99,6 +136,22 @@ export function convertRows(
         invalid = true;
       } else scores[index] = Number(raw);
     }
+    const categoryText = cell(row, m.category);
+    const category = categoryText ? parseCategory(categoryText) : undefined;
+    if (categoryText && !category) {
+      errors.push(
+        `Row ${i + 2}: unrecognized category “${categoryText}”. Use City, Nature or Beach.`,
+      );
+      invalid = true;
+    }
+    const regionText = cell(row, m.region);
+    const region = regionText ? parseRegion(regionText) : undefined;
+    if (regionText && !region) {
+      errors.push(
+        `Row ${i + 2}: unrecognized region “${regionText}”. Use one of: ${regions.map((r) => regionLabels[r]).join(", ")}.`,
+      );
+      invalid = true;
+    }
     let date = cell(row, m.date);
     if (date) {
       const normalized = normalizeDate(date);
@@ -112,6 +165,8 @@ export function convertRows(
         id: crypto.randomUUID(),
         name,
         country,
+        ...(category ? { category } : {}),
+        ...(region ? { region } : {}),
         status,
         date,
         notes,
@@ -157,6 +212,11 @@ const FORMULA_START = /^(?:[=+@\t\r]|-(?!\s|$|\d+(?:\.\d+)?$))/;
 const oneDecimal = (n: number | undefined) =>
   n === undefined ? "" : Math.round(n * 10) / 10;
 
+const regionName = (p: Place) => {
+  const region = regionOf(p);
+  return region ? regionLabels[region] : "";
+};
+
 export function exportCsv(j: Journal) {
   const scores = {
     been: [scoreMap(j, 0, "been"), scoreMap(j, 1, "been")],
@@ -168,6 +228,8 @@ export function exportCsv(j: Journal) {
       fields: [
         "Destination",
         "Country",
+        "Category",
+        "Region",
         "Status",
         "Date",
         j.people[0] + " rating",
@@ -179,6 +241,9 @@ export function exportCsv(j: Journal) {
       data: j.places.map((p) => [
         p.name,
         p.country,
+        p.category ? categoryLabels[p.category] : "",
+        // The effective region, so inferred ones survive a round trip.
+        regionName(p),
         p.status === "been" ? "Been" : "Want to go",
         p.date,
         oneDecimal(scores[p.status][0].get(p.id)),
