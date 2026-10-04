@@ -1,5 +1,5 @@
 "use client";
-import { useState } from "react";
+import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Journal, location, Place } from "@/lib/model";
 import {
   combinedScore,
@@ -10,7 +10,8 @@ import {
   removeFromGroups,
   scoreMap,
 } from "@/lib/ranking";
-import { Modal } from "./components";
+import { ErrorNotice, Modal } from "./components";
+import { formatScore, statusLabel, todayIso } from "./table-format";
 
 export function PlaceDetails({
   journal,
@@ -28,43 +29,65 @@ export function PlaceDetails({
   onClose: () => void;
   onEdit: () => void;
   onCompare: (person: Person) => void;
-  onMove: () => Promise<void>;
+  /** `date` is passed only when moving Want to go → Been ("" if cleared). */
+  onMove: (date?: string) => Promise<void>;
   onDelete: () => Promise<void>;
 }) {
   const [error, setError] = useState("");
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [moveStep, setMoveStep] = useState(false);
+  const [moveDate, setMoveDate] = useState(todayIso);
+  const moveButton = useRef<HTMLButtonElement>(null);
+  const moveDateInput = useRef<HTMLInputElement>(null);
+  const deleteButton = useRef<HTMLButtonElement>(null);
   const scores = ([0, 1] as const).map((i) =>
     scoreMap(journal, i, place.status).get(place.id),
   );
   const notes = place.notes.replace(/^Region:\s*.+(?:\r?\n|$)/m, "").trim();
+  useEffect(() => {
+    if (moveStep) moveDateInput.current?.focus();
+  }, [moveStep]);
+  async function move(date?: string) {
+    setError("");
+    try {
+      await onMove(date);
+      onClose();
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  function cancelMove() {
+    setMoveStep(false);
+    // The button re-renders in place; wait for it to mount before focusing.
+    requestAnimationFrame(() => moveButton.current?.focus());
+  }
   return (
-    <Modal title={place.name} onClose={onClose}>
+    <Modal title={place.name} onClose={onClose} busy={busy} placeId={place.id}>
       <div className="detail-meta">
-        <span className="category-badge">
-          {place.status === "been" ? "Been" : "Want to go"}
-        </span>
+        <span className="category-badge">{statusLabel(place.status)}</span>
         <span>{location(place)}</span>
       </div>
       <div className="detail-ratings">
-        {journal.people.map((name, i) => (
-          <div key={i}>
-            <span>{name}</span>
-            <strong>{scores[i]?.toFixed(1) ?? "—"}</strong>
-            <button
-              className="subtle"
-              disabled={busy}
-              onClick={() => onCompare(i as Person)}
-              aria-label={`Adjust ${name}'s rating`}
-            >
-              {scores[i] === undefined ? "Rank" : "Adjust"}
-            </button>
-          </div>
-        ))}
+        {journal.people.map((name, i) => {
+          const verb = scores[i] === undefined ? "Rank" : "Adjust";
+          return (
+            <div key={i}>
+              <span>{name}</span>
+              <strong>{formatScore(scores[i])}</strong>
+              <button
+                className="subtle"
+                disabled={busy}
+                onClick={() => onCompare(i as Person)}
+                aria-label={`${verb} ${name}'s rating`}
+              >
+                {verb}
+              </button>
+            </div>
+          );
+        })}
         <div>
           <span>Together</span>
-          <strong>
-            {combinedScore(scores[0], scores[1])?.toFixed(1) ?? "—"}
-          </strong>
+          <strong>{formatScore(combinedScore(scores[0], scores[1]))}</strong>
         </div>
       </div>
       {place.date && (
@@ -88,48 +111,120 @@ export function PlaceDetails({
           </p>
         </details>
       )}
-      {error && (
-        <p className="error" role="alert">
-          {error}
-        </p>
-      )}
-      <div className="detail-actions">
-        <button className="primary" disabled={busy} onClick={onEdit}>
-          Edit details
-        </button>
-        <button
-          className="subtle"
-          disabled={busy}
-          onClick={async () => {
-            try {
-              await onMove();
-              onClose();
-            } catch (e) {
-              setError((e as Error).message);
+      <ErrorNotice as="p" message={error} />
+      {moveStep ? (
+        <form
+          className="dialog-move-step"
+          aria-labelledby="move-step-title"
+          onSubmit={(e) => {
+            e.preventDefault();
+            move(moveDate);
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Escape" && !busy) {
+              // Escape backs out of this step instead of closing the dialog.
+              e.preventDefault();
+              cancelMove();
             }
           }}
         >
-          {place.status === "want" ? "Move to Been" : "Move to Want to go"}
-        </button>
+          <p id="move-step-title" className="dialog-move-title">
+            Move to {statusLabel("been")}
+          </p>
+          <div className="field">
+            <label htmlFor="move-date">
+              Visit date <span className="optional">optional</span>
+            </label>
+            <input
+              ref={moveDateInput}
+              id="move-date"
+              type="date"
+              value={moveDate}
+              onChange={(e) => setMoveDate(e.target.value)}
+            />
+          </div>
+          <p className="muted small">
+            Personal rankings for this place reset when it moves, so rank it
+            again afterwards.
+          </p>
+          <div className="detail-actions">
+            <button className="primary" disabled={busy}>
+              {busy ? "Moving…" : "Confirm move"}
+            </button>
+            <button
+              type="button"
+              className="subtle"
+              disabled={busy}
+              onClick={cancelMove}
+            >
+              Cancel
+            </button>
+          </div>
+        </form>
+      ) : (
+        <div className="detail-actions">
+          <button className="primary" disabled={busy} onClick={onEdit}>
+            Edit details
+          </button>
+          <button
+            ref={moveButton}
+            className="subtle"
+            disabled={busy}
+            onClick={() => {
+              setError("");
+              if (place.status === "want") setMoveStep(true);
+              else move();
+            }}
+          >
+            {place.status === "want"
+              ? `Move to ${statusLabel("been")}`
+              : `Move to ${statusLabel("want")}`}
+          </button>
+        </div>
+      )}
+      <div className="dialog-delete-row">
+        {confirmDelete && (
+          <p className="dialog-delete-prompt" id="delete-prompt">
+            Delete {place.name} from both lists? This cannot be undone.
+          </p>
+        )}
+        <div className="detail-actions">
+          <button
+            ref={deleteButton}
+            className="subtle danger"
+            disabled={busy}
+            aria-describedby={confirmDelete ? "delete-prompt" : undefined}
+            onClick={async () => {
+              if (!confirmDelete) {
+                setConfirmDelete(true);
+                return;
+              }
+              setError("");
+              try {
+                await onDelete();
+                onClose();
+              } catch (e) {
+                setError((e as Error).message);
+              }
+            }}
+          >
+            {confirmDelete ? "Confirm delete" : "Delete"}
+          </button>
+          {confirmDelete && (
+            <button
+              type="button"
+              className="subtle"
+              disabled={busy}
+              onClick={() => {
+                setConfirmDelete(false);
+                deleteButton.current?.focus();
+              }}
+            >
+              Cancel
+            </button>
+          )}
+        </div>
       </div>
-      <button
-        className="subtle danger"
-        disabled={busy}
-        onClick={async () => {
-          if (!confirmDelete) {
-            setConfirmDelete(true);
-            return;
-          }
-          try {
-            await onDelete();
-            onClose();
-          } catch (e) {
-            setError((e as Error).message);
-          }
-        }}
-      >
-        {confirmDelete ? "Confirm delete" : "Delete"}
-      </button>
     </Modal>
   );
 }
@@ -158,6 +253,8 @@ export function ComparisonDialog({
   const [history, setHistory] = useState<(typeof bounds)[]>([]);
   const [tie, setTie] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const saveButton = useRef<HTMLButtonElement>(null);
+  const firstChoice = useRef<HTMLButtonElement>(null);
   const mid = Math.floor((bounds.low + bounds.high) / 2);
   const done = tie !== null || bounds.low === bounds.high;
   const peer = !done
@@ -179,26 +276,79 @@ export function ComparisonDialog({
           : { ...bounds, low: mid + 1 },
       );
   }
+  function back() {
+    if (!history.length) return;
+    setBounds(history.at(-1)!);
+    setHistory(history.slice(0, -1));
+    setTie(null);
+    setError("");
+  }
+  useEffect(() => {
+    if (done) saveButton.current?.focus();
+    else if (!document.activeElement?.closest("dialog"))
+      firstChoice.current?.focus();
+  }, [done]);
+  const onKey = useEffectEvent((e: KeyboardEvent) => {
+    if (e.defaultPrevented || e.repeat || busy) return;
+    if (e.altKey || e.ctrlKey || e.metaKey) return;
+    const target = e.target as HTMLElement | null;
+    if (target?.closest("input, textarea, select, [contenteditable=true]"))
+      return;
+    if (e.key === "Backspace") {
+      if (history.length) {
+        e.preventDefault();
+        back();
+      }
+      return;
+    }
+    if (done) return;
+    const pick =
+      e.key === "ArrowLeft"
+        ? "target"
+        : e.key === "ArrowRight"
+          ? "peer"
+          : e.key === "t" || e.key === "T" || e.key === "="
+            ? "tie"
+            : null;
+    if (!pick) return;
+    e.preventDefault();
+    choose(pick);
+  });
+  useEffect(() => {
+    const listener = (e: KeyboardEvent) => onKey(e);
+    document.addEventListener("keydown", listener);
+    return () => document.removeEventListener("keydown", listener);
+  }, []);
   return (
     <Modal
       title={done ? "Ranking resolved" : "Compare destinations"}
       onClose={onClose}
+      busy={busy}
+      placeId={place.id}
     >
       <p className="comparison-person">
-        {journal.people[person]} ·{" "}
-        {place.status === "been" ? "Been" : "Want to go"}
+        {journal.people[person]} · {statusLabel(place.status)}
       </p>
       {!done && peer ? (
         <>
-          <h3 className="comparison-question">
+          <h3
+            className="comparison-question"
+            aria-live="polite"
+            aria-atomic="true"
+          >
             {place.status === "been"
               ? "Which did you prefer?"
               : "Where would you rather go?"}
+            <span className="sr-only">
+              {` Comparison ${history.length + 1}: ${place.name} or ${peer.name}.`}
+            </span>
           </h3>
           <div className="comparison-pair">
             <button
+              ref={firstChoice}
               onClick={() => choose("target")}
               className="comparison-choice"
+              aria-keyshortcuts="ArrowLeft"
             >
               <strong>{place.name}</strong>
               <span>{location(place)}</span>
@@ -207,14 +357,23 @@ export function ComparisonDialog({
             <button
               onClick={() => choose("peer")}
               className="comparison-choice"
+              aria-keyshortcuts="ArrowRight"
             >
               <strong>{peer.name}</strong>
               <span>{location(peer)}</span>
             </button>
           </div>
-          <button className="subtle full" onClick={() => choose("tie")}>
+          <button
+            className="subtle full"
+            onClick={() => choose("tie")}
+            aria-keyshortcuts="T ="
+          >
             Too close to call
           </button>
+          <p className="dialog-shortcuts">
+            Keys: <kbd>←</kbd> left · <kbd>→</kbd> right · <kbd>T</kbd> or{" "}
+            <kbd>=</kbd> tie · <kbd>Backspace</kbd> back
+          </p>
         </>
       ) : (
         <div className="comparison-result">
@@ -223,39 +382,31 @@ export function ComparisonDialog({
           <p>{place.name}</p>
         </div>
       )}
-      {error && (
-        <div className="error" role="alert">
-          {error}
-          <button
-            className="subtle full"
-            disabled={busy}
-            onClick={async () => {
-              try {
-                await onRestart();
-              } catch (e) {
-                setError((e as Error).message);
-              }
-            }}
-          >
-            Refresh and restart comparisons
-          </button>
-        </div>
-      )}
+      <ErrorNotice
+        message={error}
+        action="Refresh and restart comparisons"
+        fullAction
+        busy={busy}
+        onAction={async () => {
+          try {
+            await onRestart();
+          } catch (e) {
+            setError((e as Error).message);
+          }
+        }}
+      />
       <div className="comparison-footer">
         <button
           className="subtle"
           disabled={busy || !history.length}
-          onClick={() => {
-            setBounds(history.at(-1)!);
-            setHistory(history.slice(0, -1));
-            setTie(null);
-            setError("");
-          }}
+          onClick={back}
+          aria-keyshortcuts="Backspace"
         >
           Back
         </button>
         {result ? (
           <button
+            ref={saveButton}
             className="primary"
             disabled={busy || !!error}
             onClick={async () => {

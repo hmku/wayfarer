@@ -1,27 +1,66 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { X, Upload, Check } from "lucide-react";
 import { Journal, Place } from "@/lib/model";
 import { convertRows, initialMapping, Mapping, readCsv } from "@/lib/csv";
+import { dialogClosed, dialogOpened, dialogPlace } from "./dialog-focus";
+import { statusLabel } from "./table-format";
+
+const DISCARD_MESSAGE = "Discard your unsaved changes?";
+
 export function Modal({
   title,
   onClose,
   children,
+  confirmClose,
+  busy = false,
+  placeId,
 }: {
   title: string;
   onClose: () => void;
   children: React.ReactNode;
+  /** Return false to keep the dialog open (e.g. the user declines to discard a draft). */
+  confirmClose?: () => boolean;
+  /** While true, Escape, the backdrop and the close button do nothing. */
+  busy?: boolean;
+  /** The place this dialog is about; used to return focus to its table row. */
+  placeId?: string;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    ref.current?.showModal();
-    return () => ref.current?.close();
+  const initialPlace = useRef(placeId);
+  useLayoutEffect(() => {
+    const dialog = ref.current!;
+    dialogOpened(initialPlace.current);
+    dialog.showModal();
+    dialog.querySelector<HTMLElement>("[data-autofocus]")?.focus();
+    return () => {
+      dialog.close();
+      dialogClosed();
+    };
   }, []);
+  useEffect(() => dialogPlace(placeId), [placeId]);
+  function requestClose() {
+    if (busy) return;
+    if (confirmClose && !confirmClose()) return;
+    onClose();
+  }
   return (
     <dialog
       ref={ref}
       className="modal"
-      onCancel={onClose}
+      aria-busy={busy || undefined}
+      onKeyDown={(e) => {
+        // Handle Escape ourselves so the native dialog never closes behind
+        // React's back (Chrome skips `cancel` after repeated prevented Escapes).
+        if (e.key === "Escape" && !e.defaultPrevented) {
+          e.preventDefault();
+          requestClose();
+        }
+      }}
+      onCancel={(e) => {
+        e.preventDefault();
+        requestClose();
+      }}
       onClick={(e) => {
         if (e.target === e.currentTarget) {
           const r = e.currentTarget.getBoundingClientRect();
@@ -31,7 +70,7 @@ export function Modal({
             e.clientY < r.top ||
             e.clientY > r.bottom
           )
-            onClose();
+            requestClose();
         }
       }}
       aria-labelledby="modal-title"
@@ -39,8 +78,10 @@ export function Modal({
       <div className="modal-head">
         <h2 id="modal-title">{title}</h2>
         <button
+          type="button"
           className="icon-button"
-          onClick={onClose}
+          onClick={requestClose}
+          aria-disabled={busy || undefined}
           aria-label="Close dialog"
         >
           <X size={21} />
@@ -50,6 +91,49 @@ export function Modal({
     </dialog>
   );
 }
+
+/** An inline error, optionally with one recovery action (e.g. refresh). */
+export function ErrorNotice({
+  message,
+  action,
+  onAction,
+  busy = false,
+  fullAction = false,
+  as: Tag = "div",
+}: {
+  message: string;
+  action?: string;
+  onAction?: () => void | Promise<void>;
+  busy?: boolean;
+  fullAction?: boolean;
+  as?: "div" | "p";
+}) {
+  if (!message) return null;
+  return (
+    <Tag className="error" role="alert">
+      {message}
+      {action && onAction && (
+        <button
+          type="button"
+          className={fullAction ? "subtle full" : "subtle"}
+          disabled={busy}
+          onClick={onAction}
+        >
+          {action}
+        </button>
+      )}
+    </Tag>
+  );
+}
+
+type Draft = {
+  name: string;
+  country: string;
+  status: Place["status"];
+  date: string;
+  notes: string;
+};
+
 export function PlaceForm({
   place,
   defaultStatus,
@@ -65,34 +149,95 @@ export function PlaceForm({
   onSave: (p: Place) => Promise<void>;
   onClose: () => void;
 }) {
-  const status = place?.status || defaultStatus;
+  const form = useRef<HTMLFormElement>(null);
+  const [status, setStatus] = useState<Place["status"]>(
+    place?.status || defaultStatus,
+  );
   const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const initial = useRef<Draft>({
+    name: place?.name ?? "",
+    country: place?.country ?? "",
+    status: place?.status || defaultStatus,
+    date: place?.date ?? "",
+    notes: place?.notes ?? "",
+  });
+  function draft(): Draft {
+    const f = new FormData(form.current!);
+    return {
+      name: String(f.get("name") ?? ""),
+      country: String(f.get("country") ?? ""),
+      status,
+      date:
+        status === "want"
+          ? initial.current.date
+          : String(f.get("date") ?? ""),
+      notes: String(f.get("notes") ?? ""),
+    };
+  }
+  function dirty() {
+    if (!form.current) return false;
+    const now = draft();
+    return (Object.keys(now) as (keyof Draft)[]).some(
+      (k) => now[k] !== initial.current[k],
+    );
+  }
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
-    const f = new FormData(e.currentTarget);
+    if (saving) return;
+    const d = draft();
+    setError("");
+    setSaving(true);
     try {
       await onSave({
         id: place?.id || crypto.randomUUID(),
-        name: String(f.get("name")).trim(),
-        country: String(f.get("country")).trim(),
-        status,
-        date: String(f.get("date") || ""),
-        notes: String(f.get("notes") || ""),
+        name: d.name.trim(),
+        country: d.country.trim(),
+        status: d.status,
+        date: d.date,
+        notes: d.notes,
         ratings: place?.ratings || [null, null],
       });
     } catch (e) {
       setError((e as Error).message);
+    } finally {
+      setSaving(false);
     }
   }
   return (
     <Modal
-      title={place ? "Destination details" : "Add a destination"}
+      title={place ? "Edit destination" : "Add a destination"}
       onClose={onClose}
+      busy={busy || saving}
+      placeId={place?.id}
+      confirmClose={() => !dirty() || window.confirm(DISCARD_MESSAGE)}
     >
-      <form onSubmit={submit}>
-        <p className="category-badge">
-          {status === "been" ? "Been" : "Want to go"}
-        </p>
+      <form
+        ref={form}
+        onSubmit={submit}
+        onChange={() => {
+          if (error) setError("");
+        }}
+      >
+        {place ? (
+          <p className="category-badge">{statusLabel(status)}</p>
+        ) : (
+          <fieldset className="dialog-list-choice">
+            <legend>List</legend>
+            {(["been", "want"] as const).map((s) => (
+              <label key={s}>
+                <input
+                  type="radio"
+                  name="status"
+                  value={s}
+                  checked={status === s}
+                  onChange={() => setStatus(s)}
+                />
+                {statusLabel(s)}
+              </label>
+            ))}
+          </fieldset>
+        )}
         <div className="field">
           <label htmlFor="place-name">Destination</label>
           <input
@@ -102,7 +247,7 @@ export function PlaceForm({
             maxLength={120}
             defaultValue={place?.name}
             placeholder="e.g. Kyoto"
-            autoFocus
+            data-autofocus
           />
         </div>
         <div className="field">
@@ -115,17 +260,19 @@ export function PlaceForm({
             placeholder="e.g. Japan"
           />
         </div>
-        <div className="field">
-          <label htmlFor="visit-date">
-            Visit date <span className="optional">optional</span>
-          </label>
-          <input
-            id="visit-date"
-            name="date"
-            type="date"
-            defaultValue={place?.date}
-          />
-        </div>
+        {status === "been" && (
+          <div className="field">
+            <label htmlFor="visit-date">
+              Visit date <span className="optional">optional</span>
+            </label>
+            <input
+              id="visit-date"
+              name="date"
+              type="date"
+              defaultValue={place?.date}
+            />
+          </div>
+        )}
         <div className="field">
           <label htmlFor="notes">Notes</label>
           <textarea
@@ -136,22 +283,18 @@ export function PlaceForm({
             defaultValue={place?.notes}
           />
         </div>
-        {error && (
-          <div className="error" role="alert">
-            {error}
-            <button
-              type="button"
-              className="subtle"
-              disabled={busy}
-              onClick={onRefresh}
-            >
-              Refresh journal
-            </button>
-          </div>
-        )}
+        <ErrorNotice
+          message={error}
+          action="Refresh journal"
+          busy={busy}
+          onAction={async () => {
+            await onRefresh();
+            setError("");
+          }}
+        />
         <div className="form-footer">
-          <button className="primary" disabled={busy}>
-            {busy ? (
+          <button className="primary" disabled={busy || saving}>
+            {busy || saving ? (
               "Saving…"
             ) : (
               <>
@@ -165,6 +308,7 @@ export function PlaceForm({
     </Modal>
   );
 }
+
 export function ImportForm({
   journal,
   busy,
@@ -181,11 +325,19 @@ export function ImportForm({
   const [parsed, setParsed] = useState<ReturnType<typeof readCsv> | null>(null);
   const [mapping, setMapping] = useState<Mapping | null>(null);
   const [filename, setFilename] = useState("");
-  const [error, setError] = useState("");
+  /** Problems with the chosen file; refreshing the journal will not help. */
+  const [fileError, setFileError] = useState("");
+  /** Save or conflict errors; refreshing the journal can resolve these. */
+  const [saveError, setSaveError] = useState("");
+  const [importing, setImporting] = useState(false);
   async function fileChanged(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0];
+    setParsed(null);
+    setMapping(null);
+    setFilename("");
+    setFileError("");
+    setSaveError("");
     if (!file) return;
-    setError("");
     try {
       if (file.size > 2_000_000)
         throw new Error("Choose a CSV smaller than 2 MB.");
@@ -193,23 +345,31 @@ export function ImportForm({
       setParsed(data);
       setMapping(initialMapping(data.headers));
       setFilename(file.name);
-    } catch (e) {
-      setError((e as Error).message);
+    } catch (err) {
+      e.target.value = "";
+      setFileError((err as Error).message);
     }
   }
-  const preview = parsed && mapping ? convertRows(parsed.rows, mapping) : null;
-  const unique = new Map<string, Place>();
-  const existing = new Set(
-    journal.places.map(
-      (p) => `${p.name.toLowerCase()}|${p.country.toLowerCase()}`,
-    ),
+  // IDs come from convertRows; only regenerate them when the inputs change.
+  const preview = useMemo(
+    () => (parsed && mapping ? convertRows(parsed.rows, mapping) : null),
+    [parsed, mapping],
   );
-  preview?.places.forEach((p) => {
-    const key = `${p.name.toLowerCase()}|${p.country.toLowerCase()}`;
-    if (!existing.has(key)) unique.set(key, p);
-  });
-  const additions = [...unique.values()];
+  const additions = useMemo(() => {
+    const key = (p: Place) =>
+      `${p.name.toLowerCase()}|${p.country.toLowerCase()}`;
+    const existing = new Set(journal.places.map(key));
+    const unique = new Map<string, Place>();
+    preview?.places.forEach((p) => {
+      if (!existing.has(key(p))) unique.set(key(p), p);
+    });
+    return [...unique.values()];
+  }, [preview, journal.places]);
   const skipped = (preview?.places.length || 0) - additions.length;
+  function updateMapping(next: Mapping) {
+    setMapping(next);
+    setSaveError("");
+  }
   function select(key: Exclude<keyof Mapping, "defaultStatus">, label: string) {
     return (
       <div className="field">
@@ -217,7 +377,7 @@ export function ImportForm({
         <select
           id={"column-" + key}
           value={mapping![key]}
-          onChange={(e) => setMapping({ ...mapping!, [key]: e.target.value })}
+          onChange={(e) => updateMapping({ ...mapping!, [key]: e.target.value })}
         >
           <option value="-1">
             {key === "name" ? "Choose a column" : "None"}
@@ -232,7 +392,12 @@ export function ImportForm({
     );
   }
   return (
-    <Modal title="Import CSV" onClose={onClose}>
+    <Modal
+      title="Import CSV"
+      onClose={onClose}
+      busy={busy || importing}
+      confirmClose={() => !parsed || window.confirm(DISCARD_MESSAGE)}
+    >
       <p className="muted">
         Export the Travel tab as CSV. Choose the columns below and check the
         preview before importing.
@@ -242,32 +407,31 @@ export function ImportForm({
         <strong>{filename || "Choose a CSV file"}</strong>
         <input type="file" accept=".csv,text/csv" onChange={fileChanged} />
       </label>
+      <ErrorNotice message={fileError} />
       {parsed && mapping && (
         <>
           <div className="form-grid">
             {select("name", "Destination column")}
             {select("country", "Country column")}
-            {select("first", `${journal.people[0]}’s rating`)}
-            {select("second", `${journal.people[1]}’s rating`)}
+            {select("first", `Rating — ${journal.people[0]}`)}
+            {select("second", `Rating — ${journal.people[1]}`)}
             {select("status", "List / status column")}
-            {
-              <div className="field">
-                <label htmlFor="import-list">Default list</label>
-                <select
-                  id="import-list"
-                  value={mapping.defaultStatus}
-                  onChange={(e) =>
-                    setMapping({
-                      ...mapping,
-                      defaultStatus: e.target.value as "been" | "want",
-                    })
-                  }
-                >
-                  <option value="been">Been</option>
-                  <option value="want">Want to go</option>
-                </select>
-              </div>
-            }
+            <div className="field">
+              <label htmlFor="import-list">Default list</label>
+              <select
+                id="import-list"
+                value={mapping.defaultStatus}
+                onChange={(e) =>
+                  updateMapping({
+                    ...mapping,
+                    defaultStatus: e.target.value as "been" | "want",
+                  })
+                }
+              >
+                <option value="been">{statusLabel("been")}</option>
+                <option value="want">{statusLabel("want")}</option>
+              </select>
+            </div>
             {select("date", "Visit date column")}
             {select("notes", "Notes column")}
           </div>
@@ -288,49 +452,59 @@ export function ImportForm({
                   {p.country ? `, ${p.country}` : ""}
                 </span>
                 <span>
-                  {p.status === "been" ? "Been" : "Want to go"} ·{" "}
+                  {statusLabel(p.status)} ·{" "}
                   {p.ratings.map((r) => r ?? "—").join(" / ")}
                 </span>
               </div>
             ))}
           </div>
           {preview?.errors.length ? (
-            <p className="error" role="alert">
-              {preview.errors.slice(0, 3).join(" ")}
-              {preview.errors.length > 3
-                ? ` (+${preview.errors.length - 3} more)`
-                : ""}
-            </p>
+            <ErrorNotice
+              as="p"
+              message={
+                preview.errors.slice(0, 3).join(" ") +
+                (preview.errors.length > 3
+                  ? ` (+${preview.errors.length - 3} more)`
+                  : "")
+              }
+            />
           ) : null}
           <button
             className="primary full"
-            disabled={busy || !additions.length || !!preview?.errors.length}
+            disabled={
+              busy ||
+              importing ||
+              !additions.length ||
+              !!preview?.errors.length
+            }
             onClick={async () => {
+              setSaveError("");
+              setImporting(true);
               try {
                 await onImport(additions);
                 onClose();
               } catch (e) {
-                setError((e as Error).message);
+                setSaveError((e as Error).message);
+              } finally {
+                setImporting(false);
               }
             }}
           >
-            {busy ? "Importing…" : `Import ${additions.length} destinations`}
+            {busy || importing
+              ? "Importing…"
+              : `Import ${additions.length} destinations`}
           </button>
         </>
       )}
-      {error && (
-        <div className="error" role="alert">
-          {error}
-          <button
-            type="button"
-            className="subtle"
-            disabled={busy}
-            onClick={onRefresh}
-          >
-            Refresh journal
-          </button>
-        </div>
-      )}
+      <ErrorNotice
+        message={saveError}
+        action="Refresh journal"
+        busy={busy}
+        onAction={async () => {
+          await onRefresh();
+          setSaveError("");
+        }}
+      />
     </Modal>
   );
 }
