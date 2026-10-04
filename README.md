@@ -46,15 +46,17 @@ Writes use Blob ETags to reject stale revisions (the SDK's typed precondition er
 
 - **Moving a wishlist place to Been** asks for the visit date (today by default; clear it to leave the date blank). The details stay open so you can rank it right away. Moving resets that place's personal rankings.
 - **Undo**: after deleting or moving a destination, the confirmation offers Undo for a few seconds. It restores the place and its position in both rankings. If your partner saved in the meantime, refresh and repeat.
+- **Category and region**: each destination can be a City, Nature, or Beach place, and belongs to one of eight regions (Europe, Asia, Middle East, Africa, North America, Caribbean & Central America, South America, Oceania). Set both under **Edit details**. If no region is chosen, it is worked out from the country, so existing places already have one where the country is recognisable. Filter the list by category from the toolbar.
+- **Stats**: the chart button in the header (or `S`) shows each person's and your shared average ranking score per category and per region, for Been by default or Want to go. Scores are the 0–10 relative ranking scores, so they show which kinds of places each of you ranks higher; places without a category are listed separately and not counted.
 - **Countries / regions**: tap the count in the summary to see visited and wishlist counts per location, and pick one to filter the list. Remove the filter with the chip's ×.
 - **Backup and restore**: Settings → **Download backup** saves the complete journal, including tie groups, as JSON. **Restore from backup** replaces the whole journal after a confirmation. Use this before large imports or edits; CSV export is for spreadsheets.
 - **Start ratings over**: Settings → **Clear all ratings** makes every destination unrated for both people and removes both rankings, including original imported ratings. Places, dates, and notes stay. Download a backup first; this cannot be undone otherwise.
-- **Keyboard shortcuts** on the main list: `/` search, `N` add, `1` / `2` switch lists. In comparisons: `←` / `→` choose, `T` or `=` tie, `Backspace` back.
+- **Keyboard shortcuts** on the main list: `/` search, `N` add, `1` / `2` switch lists, `S` stats. In comparisons: `←` / `→` choose, `T` or `=` tie, `Backspace` back.
 - The app follows your system light or dark appearance.
 
 ## Comparison rankings
 
-Open a destination, then choose **Adjust** or **Rank** under your name. Pick the destination you prefer in each side-by-side comparison; **Too close to call** creates a tie. Binary search narrows the insertion position in a few comparisons. Back undoes a choice. The ranking saves as soon as its position is decided, and the details reopen with the new score. Visited comparisons only use visited destinations. Wishlist comparisons ask where you would rather go. Each person and each category has an independent order.
+Open a destination, then choose **Adjust** or **Rank** under your name. Pick the destination you prefer in each side-by-side comparison; **Too close to call** creates a tie. Binary search narrows the insertion position in a few comparisons. When the destination has a category and at least three ranked destinations in that list share it, the early comparisons are against same-category destinations near the middle of the remaining range; once the range is down to a couple of groups, comparisons use any destination. This keeps the number of comparisons close to logarithmic. Back undoes a choice. The ranking saves as soon as its position is decided, and the details reopen with the new score. Visited comparisons only use visited destinations. Wishlist comparisons ask where you would rather go. Each person and each category has an independent order.
 
 For direct edits, choose **Reorder** above the table, select a person's name, and drag the row handles. Mouse, touch, and keyboard Up/Down keys work. Each move saves immediately and updates scores. Moving a tied destination separates it from the tie; other ties remain intact. Together stays the average of the two personal rankings. Search is disabled while reordering so moves use the complete list. A move conflicts only if the same person's list was reordered elsewhere at the same time; refresh and repeat it.
 
@@ -71,6 +73,7 @@ The comparison approach follows publicly documented [Beli behavior](https://www.
 In Google Sheets, select **Travel**, then **File → Download → Comma-separated values (.csv)**. In the app, choose **Import CSV** and map:
 
 - destination and optional country;
+- optional category (City, Nature, Beach) and region (one of the eight region names) columns; unknown values block the import with the row number;
 - each person’s rating column;
 - an optional status, date, and notes column.
 
@@ -78,7 +81,7 @@ Check the preview before importing. Ratings must be numbers from 0–10. Blank r
 
 Existing destinations are skipped by case-insensitive destination + country. Imports add entries and never replace the journal. Invalid ratings, unreadable dates, unrecognized statuses, or over-long fields block import, with the row number, so you can fix the file or the mapping. Destination and country are limited to 120 characters and notes to 5,000. The header row must be the first nonempty row. A journal holds up to 2,000 destinations, and each import file can be up to 2 MB.
 
-Export creates a UTF-8 CSV with a byte-order mark, so Excel shows accented names correctly, containing both lists. Score columns are named `<name> rating` and rounded to one decimal; importing an export maps them back to each person automatically, and the original imported ratings follow in their own columns. Text that a spreadsheet would run as a formula (starting with `=`, `+`, `@`, a tab, a carriage return, or `-` followed by something other than a space or a plain number) is prefixed with `'`. Notes like `- great food` and values like `-5` are left as written.
+Export creates a UTF-8 CSV with a byte-order mark, so Excel shows accented names correctly, containing both lists, with Category and Region columns (the region shown is the chosen or inferred one). Score columns are named `<name> rating` and rounded to one decimal; importing an export maps them back to each person automatically, and the original imported ratings follow in their own columns. Text that a spreadsheet would run as a formula (starting with `=`, `+`, `@`, a tab, a carriage return, or `-` followed by something other than a space or a plain number) is prefixed with `'`. Notes like `- great food` and values like `-5` are left as written.
 
 Import travel records through the authenticated app. Travel data is stored in private Blob storage, not this repository.
 
