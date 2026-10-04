@@ -203,11 +203,10 @@ test("comparisons continue past three until the exact position resolves", async 
   }
   expect(choices.length).toBe(7);
   expect(new Set(choices).size).toBe(choices.length);
+  // The final choice saves immediately and returns to the details.
   await expect(
-    page.getByRole("heading", { name: "Ranking resolved" }),
+    page.getByRole("heading", { name: "Target", exact: true }),
   ).toBeVisible();
-  await expect(page.locator(".comparison-result")).toContainText("#1");
-  await page.getByRole("button", { name: "Save ranking" }).click();
   const saved = (await (await page.request.get("/api/journal")).json()).journal;
   expect(personalGroups(saved, 0, "been")[0]).toEqual(["Target"]);
 });

@@ -54,7 +54,7 @@ Writes use Blob ETags to reject stale revisions (the SDK's typed precondition er
 
 ## Comparison rankings
 
-Open a destination, then choose **Adjust** or **Rank** under your name. Pick the destination you prefer in each side-by-side comparison; **Too close to call** creates a tie. Binary search narrows the insertion position in a few comparisons. Back undoes a choice; nothing is saved until **Save ranking**. Visited comparisons only use visited destinations. Wishlist comparisons ask where you would rather go. Each person and each category has an independent order.
+Open a destination, then choose **Adjust** or **Rank** under your name. Pick the destination you prefer in each side-by-side comparison; **Too close to call** creates a tie. Binary search narrows the insertion position in a few comparisons. Back undoes a choice. The ranking saves as soon as its position is decided, and the details reopen with the new score. Visited comparisons only use visited destinations. Wishlist comparisons ask where you would rather go. Each person and each category has an independent order.
 
 For direct edits, choose **Reorder** above the table, select a person's name, and drag the row handles. Mouse, touch, and keyboard Up/Down keys work. Each move saves immediately and updates scores. Moving a tied destination separates it from the tie; other ties remain intact. Together stays the average of the two personal rankings. Search is disabled while reordering so moves use the complete list. Stale saves are rejected; refresh and repeat the move.
 

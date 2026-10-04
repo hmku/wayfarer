@@ -312,10 +312,7 @@ test("comparison ranking preserves ties, original ratings, categories, and partn
   await page.getByRole("button", { name: "Back", exact: true }).click();
   await page.locator(".comparison-choice").filter({ hasText: /^E/ }).click();
   await page.locator(".comparison-choice").filter({ hasText: /^E/ }).click();
-  await page.getByRole("button", { name: "Too close to call" }).click();
-  await expect(
-    page.getByRole("heading", { name: "Ranking resolved" }),
-  ).toBeVisible();
+  // The partner saves before the last choice, which saves immediately.
   const concurrent = await (await api.get("/api/journal")).json();
   const partnerGroups = personalGroups(
     concurrent.journal,
@@ -336,7 +333,7 @@ test("comparison ranking preserves ties, original ratings, categories, and partn
       })
     ).status(),
   ).toBe(200);
-  await page.getByRole("button", { name: "Save ranking" }).click();
+  await page.getByRole("button", { name: "Too close to call" }).click();
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
     "Your partner changed",
   );
@@ -346,7 +343,6 @@ test("comparison ranking preserves ties, original ratings, categories, and partn
   await page.locator(".comparison-choice").filter({ hasText: /^E/ }).click();
   await page.locator(".comparison-choice").filter({ hasText: /^E/ }).click();
   await page.getByRole("button", { name: "Too close to call" }).click();
-  await page.getByRole("button", { name: "Save ranking" }).click();
   await expect(
     page.getByRole("heading", { name: "E", exact: true }),
   ).toBeVisible();

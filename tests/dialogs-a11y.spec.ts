@@ -230,24 +230,10 @@ test("comparison keyboard shortcuts, announcements, and focus", async ({
   await expect(question).toContainText("Comparison 1: Target or P3");
   await page.keyboard.press("ArrowLeft");
   await expect(question).toContainText("Comparison 2: Target or P1");
-  await page.keyboard.press("t");
-  await expect(
-    dialog.getByRole("heading", { name: "Ranking resolved" }),
-  ).toBeVisible();
-  const save = dialog.getByRole("button", { name: "Save ranking" });
-  await expect(save).toBeFocused();
-  await expect(dialog.locator(".comparison-result")).toContainText("Tied at");
-  await page.keyboard.press("Backspace");
-  await expect(question).toContainText("Comparison 2: Target or P1");
-  await page.keyboard.press("=");
-  await expect(save).toBeFocused();
-  await page.keyboard.press("Backspace");
   await page.keyboard.press("ArrowLeft");
   await expect(question).toContainText("Comparison 3: Target or P0");
+  // The last choice saves straight away and returns to the details.
   await page.keyboard.press("ArrowRight");
-  await expect(save).toBeFocused();
-  await expect(dialog.locator(".comparison-result")).toContainText("#2");
-  await page.keyboard.press("Enter");
   await expect(
     dialog.getByRole("heading", { name: "Target", exact: true }),
   ).toBeVisible();

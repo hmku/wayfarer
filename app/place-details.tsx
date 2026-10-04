@@ -253,7 +253,7 @@ export function ComparisonDialog({
   const [history, setHistory] = useState<(typeof bounds)[]>([]);
   const [tie, setTie] = useState<number | null>(null);
   const [error, setError] = useState("");
-  const saveButton = useRef<HTMLButtonElement>(null);
+  const saving = useRef(false);
   const firstChoice = useRef<HTMLButtonElement>(null);
   const mid = Math.floor((bounds.low + bounds.high) / 2);
   const done = tie !== null || bounds.low === bounds.high;
@@ -284,10 +284,24 @@ export function ComparisonDialog({
     setError("");
   }
   useEffect(() => {
-    if (done) saveButton.current?.focus();
-    else if (!document.activeElement?.closest("dialog"))
+    if (!done && !document.activeElement?.closest("dialog"))
       firstChoice.current?.focus();
   }, [done]);
+  // Save as soon as the position is decided; there is no separate save step.
+  const saveResult = useEffectEvent(async () => {
+    if (!result || saving.current) return;
+    saving.current = true;
+    try {
+      await onSave(result);
+      onClose();
+    } catch (e) {
+      saving.current = false;
+      setError((e as Error).message);
+    }
+  });
+  useEffect(() => {
+    if (done && !error) saveResult();
+  }, [done, error]);
   const onKey = useEffectEvent((e: KeyboardEvent) => {
     if (e.defaultPrevented || e.repeat || busy) return;
     if (e.altKey || e.ctrlKey || e.metaKey) return;
@@ -321,7 +335,7 @@ export function ComparisonDialog({
   }, []);
   return (
     <Modal
-      title={done ? "Ranking resolved" : "Compare destinations"}
+      title={done ? "Saving ranking" : "Compare destinations"}
       onClose={onClose}
       busy={busy}
       placeId={place.id}
@@ -376,7 +390,7 @@ export function ComparisonDialog({
           </p>
         </>
       ) : (
-        <div className="comparison-result">
+        <div className="comparison-result" role="status">
           <span>{tie !== null ? "Tied at" : "Rank"}</span>
           <strong>#{rank}</strong>
           <p>{place.name}</p>
@@ -404,23 +418,6 @@ export function ComparisonDialog({
         >
           Back
         </button>
-        {result ? (
-          <button
-            ref={saveButton}
-            className="primary"
-            disabled={busy || !!error}
-            onClick={async () => {
-              try {
-                await onSave(result);
-                onClose();
-              } catch (e) {
-                setError((e as Error).message);
-              }
-            }}
-          >
-            {busy ? "Saving…" : "Save ranking"}
-          </button>
-        ) : null}
       </div>
     </Modal>
   );
