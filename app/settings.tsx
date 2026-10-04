@@ -1,6 +1,6 @@
 "use client";
 import { useState } from "react";
-import { Download, LockKeyhole, Upload } from "lucide-react";
+import { Download, LockKeyhole, RotateCcw, Upload } from "lucide-react";
 import { Journal, validateJournal } from "@/lib/model";
 import { Modal } from "./components";
 
@@ -62,6 +62,7 @@ export function SettingsModal({
   loaded,
   onSaveNames,
   onRestore,
+  onClearRatings,
   onClose,
 }: {
   journal: Journal;
@@ -69,11 +70,18 @@ export function SettingsModal({
   loaded: boolean;
   onSaveNames: (people: [string, string]) => Promise<void>;
   onRestore: (journal: Journal) => Promise<void>;
+  onClearRatings: () => Promise<void>;
   onClose: () => void;
 }) {
   // Errors stay inside the dialog; page-level errors are not shown here.
   const [error, setError] = useState("");
   const [pending, setPending] = useState<{ name: string; journal: Journal }>();
+  const [confirmClear, setConfirmClear] = useState(false);
+  const rated = journal.places.filter((p) =>
+    p.ratings.some((r) => r !== null),
+  ).length;
+  const hasRatings =
+    rated > 0 || !!journal.rankings?.some((groups) => groups.length);
   return (
     <Modal title="Settings" onClose={onClose} busy={busy}>
       <form
@@ -185,6 +193,69 @@ export function SettingsModal({
                 className="subtle"
                 disabled={busy}
                 onClick={() => setPending(undefined)}
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+      </section>
+      <section className="backup-section" aria-labelledby="reset-heading">
+        <h3 id="reset-heading">Start ratings over</h3>
+        <p className="muted small">
+          Clears both people&apos;s scores and rankings on both lists. Places,
+          dates, and notes stay.
+        </p>
+        {!confirmClear ? (
+          <div className="backup-actions">
+            <button
+              type="button"
+              className="subtle"
+              disabled={!loaded || busy || !hasRatings}
+              onClick={() => {
+                setError("");
+                setConfirmClear(true);
+              }}
+            >
+              <RotateCcw size={16} />
+              Clear all ratings
+            </button>
+          </div>
+        ) : (
+          <div
+            className="restore-confirm"
+            role="alertdialog"
+            aria-labelledby="clear-warning"
+          >
+            <p id="clear-warning">
+              <strong>Clear every rating?</strong> All {journal.places.length}{" "}
+              destinations become unrated for {journal.people[0]} and{" "}
+              {journal.people[1]}, including original imported ratings. This
+              can&apos;t be undone except by restoring a backup, so download
+              one first.
+            </p>
+            <div className="backup-actions">
+              <button
+                type="button"
+                className="primary danger-button"
+                disabled={busy}
+                onClick={async () => {
+                  setError("");
+                  try {
+                    await onClearRatings();
+                    setConfirmClear(false);
+                  } catch (err) {
+                    setError((err as Error).message);
+                  }
+                }}
+              >
+                {busy ? "Clearing…" : "Clear all ratings"}
+              </button>
+              <button
+                type="button"
+                className="subtle"
+                disabled={busy}
+                onClick={() => setConfirmClear(false)}
               >
                 Cancel
               </button>

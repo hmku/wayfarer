@@ -4,6 +4,7 @@ import { Bookmark, Check, Compass, MapPin, Plus, Upload } from "lucide-react";
 import { Journal, mergePlace, Place } from "@/lib/model";
 import { exportCsv } from "@/lib/csv";
 import {
+  clearRatings,
   forgetRanking,
   moveRanking,
   Person,
@@ -541,6 +542,12 @@ export default function Home() {
             setCountry("");
             exitReorder();
             showNotice("Journal restored from backup");
+            setModal(null);
+          }}
+          onClearRatings={async () => {
+            await save(clearRatings(journal));
+            exitReorder();
+            showNotice("All ratings cleared");
             setModal(null);
           }}
         />

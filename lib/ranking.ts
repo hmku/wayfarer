@@ -195,3 +195,12 @@ export function forgetRanking(j: Journal, id: string): Journal {
       }
     : j;
 }
+
+// Every place unrated for both people, with no stored rankings.
+export function clearRatings(j: Journal): Journal {
+  return {
+    version: j.version,
+    people: j.people,
+    places: j.places.map((p) => ({ ...p, ratings: [null, null] })),
+  };
+}

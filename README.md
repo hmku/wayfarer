@@ -48,6 +48,7 @@ Writes use Blob ETags to reject stale revisions (the SDK's typed precondition er
 - **Undo**: after deleting or moving a destination, the confirmation offers Undo for a few seconds. It restores the place and its position in both rankings. If your partner saved in the meantime, refresh and repeat.
 - **Countries / regions**: tap the count in the summary to see visited and wishlist counts per location, and pick one to filter the list. Remove the filter with the chip's ×.
 - **Backup and restore**: Settings → **Download backup** saves the complete journal, including tie groups, as JSON. **Restore from backup** replaces the whole journal after a confirmation. Use this before large imports or edits; CSV export is for spreadsheets.
+- **Start ratings over**: Settings → **Clear all ratings** makes every destination unrated for both people and removes both rankings, including original imported ratings. Places, dates, and notes stay. Download a backup first; this cannot be undone otherwise.
 - **Keyboard shortcuts** on the main list: `/` search, `N` add, `1` / `2` switch lists. In comparisons: `←` / `→` choose, `T` or `=` tie, `Backspace` back.
 - The app follows your system light or dark appearance.
 
