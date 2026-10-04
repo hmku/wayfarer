@@ -179,17 +179,7 @@ test("mobile journal editing, both lists, CSV preview, export, and lock", async 
       await api.put("/api/journal", { headers: { origin }, data: concurrent })
     ).status(),
   ).toBe(200);
-  await page.getByRole("button", { name: "Save destination" }).click();
-  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
-    "Your partner changed the journal",
-  );
-  await expect(page.getByLabel("Country or region")).toHaveValue(
-    "Portugal Coast",
-  );
-  await page
-    .getByRole("dialog")
-    .getByRole("button", { name: "Refresh journal" })
-    .click();
+  // Different fields: the save merges with the partner's note, no conflict.
   await page.getByRole("button", { name: "Save destination" }).click();
   await expect(
     page
@@ -333,15 +323,7 @@ test("comparison ranking preserves ties, original ratings, categories, and partn
       })
     ).status(),
   ).toBe(200);
-  await page.getByRole("button", { name: "Too close to call" }).click();
-  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
-    "Your partner changed",
-  );
-  await page
-    .getByRole("button", { name: "Refresh and restart comparisons" })
-    .click();
-  await page.locator(".comparison-choice").filter({ hasText: /^E/ }).click();
-  await page.locator(".comparison-choice").filter({ hasText: /^E/ }).click();
+  // The partner ranked their own list, so this ranking merges cleanly.
   await page.getByRole("button", { name: "Too close to call" }).click();
   await expect(
     page.getByRole("heading", { name: "E", exact: true }),

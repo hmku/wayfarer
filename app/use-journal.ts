@@ -1,6 +1,7 @@
 "use client";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { emptyJournal, Journal } from "@/lib/model";
+import { Change, diffJournals } from "@/lib/changes";
 
 export type Session = "loading" | "locked" | "open";
 
@@ -25,7 +26,7 @@ function responseError(r: Response, data: Record<string, unknown>) {
   if (typeof data.error === "string" && data.error) return data.error;
   if (r.status === 401) return "Your session expired. Unlock the journal again.";
   if (r.status === 409)
-    return "Your partner changed the journal. Refresh, then apply your change again.";
+    return "Your partner changed the same thing. Refresh, then apply your change again.";
   if (r.status >= 500)
     return "The journal server is unavailable right now. Please try again in a moment.";
   return `Something went wrong (error ${r.status}). Please try again.`;
@@ -95,7 +96,6 @@ export function useJournal({
   const [loaded, setLoaded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const revision = useRef("new");
   const resetRef = useRef(onSessionReset);
   useEffect(() => {
     resetRef.current = onSessionReset;
@@ -109,7 +109,6 @@ export function useJournal({
 
   const resetSession = useCallback(() => {
     loadSeq.current++;
-    revision.current = "new";
     setSession("locked");
     setJournal(emptyJournal());
     setLoaded(false);
@@ -129,12 +128,11 @@ export function useJournal({
       resetSession();
       return null;
     }
-    if (!r.ok || !data.journal || typeof data.revision !== "string")
+    if (!r.ok || !data.journal)
       throw new Error(
         r.ok ? "The journal response was not understood." : responseError(r, data),
       );
     const next = data.journal as Journal;
-    revision.current = data.revision;
     setJournal(next);
     setLoaded(true);
     return next;
@@ -182,29 +180,37 @@ export function useJournal({
     [load],
   );
 
-  /** Save the whole journal against the last known revision. Throws on failure. */
+  /**
+   * Save `next`, which was made from the current journal. Only the fields it
+   * changes are sent; the server applies them to the latest journal, so edits
+   * to different fields by the two people never conflict. `replace` sends the
+   * whole journal instead (restoring a backup). Throws on failure.
+   */
   const save = useCallback(
-    async (next: Journal): Promise<Journal> => {
+    async (next: Journal, { replace = false } = {}): Promise<Journal> => {
+      const changes: Change[] = replace
+        ? [{ kind: "replace", journal: next }]
+        : diffJournals(latest.current, next);
+      if (!changes.length) return latest.current;
       setBusy(true);
       setError("");
       saving.current = true;
       saveEpoch.current++;
       try {
         const r = await request("/api/journal", {
-          method: "PUT",
+          method: "PATCH",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ journal: next, revision: revision.current }),
+          body: JSON.stringify({ changes }),
         });
         const data = await readJson(r);
         if (r.status === 401) resetSession();
-        if (!r.ok || !data.journal || typeof data.revision !== "string")
+        if (!r.ok || !data.journal)
           throw new Error(
             r.ok
               ? "The save response was not understood. Refresh to check your change."
               : responseError(r, data),
           );
         const saved = data.journal as Journal;
-        revision.current = data.revision;
         setJournal(saved);
         return saved;
       } finally {

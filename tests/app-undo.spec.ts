@@ -95,9 +95,7 @@ test("undo reverses a move, and moving to Been keeps the dialog open", async ({
   expect(orders(saved)).toEqual(orders(journal));
 });
 
-test("undo against a stale revision shows the conflict message", async ({
-  page,
-}) => {
+test("undo merges with an unrelated partner edit", async ({ page }) => {
   await seed(page, journal);
   await open(page);
   await page.getByRole("button", { name: "Delta, Spain", exact: true }).click();
@@ -106,6 +104,29 @@ test("undo against a stale revision shows the conflict message", async ({
   await expect(page.getByRole("status")).toContainText("Destination deleted");
   const other = (await readJournal(page)).journal;
   await writeJournal(page, { ...other, people: ["Alex", "Samantha"] });
+  await page.getByRole("status").getByRole("button", { name: "Undo" }).click();
+  await expect(page.getByRole("status")).toContainText("Delta restored");
+  const saved = (await readJournal(page)).journal;
+  expect(saved.people).toEqual(["Alex", "Samantha"]);
+  expect(saved.places.some((p) => p.id === "u-d")).toBe(true);
+  expect(orders(saved)).toEqual(orders(journal));
+});
+
+test("undo against a conflicting ranking shows the conflict message", async ({
+  page,
+}) => {
+  await seed(page, journal);
+  await open(page);
+  await page.getByRole("button", { name: "Delta, Spain", exact: true }).click();
+  await page.getByRole("button", { name: "Delete", exact: true }).click();
+  await page.getByRole("button", { name: "Confirm delete" }).click();
+  await expect(page.getByRole("status")).toContainText("Destination deleted");
+  // The partner reorders Alex's Been list, which undo also needs to change.
+  const other = (await readJournal(page)).journal;
+  await writeJournal(page, {
+    ...other,
+    rankings: [[["u-c"], ["u-b"], ["u-a"], ["u-w"]], other.rankings![1]],
+  });
   await page.getByRole("status").getByRole("button", { name: "Undo" }).click();
   await expect(page.locator(".error.banner")).toContainText(
     "Your partner changed",

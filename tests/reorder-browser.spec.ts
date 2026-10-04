@@ -111,18 +111,7 @@ test("drag, touch, and keyboard reorder persist independently and reject stale e
       })
     ).status(),
   ).toBe(200);
-  await mouseMove(page, "B", "A", "before");
-  await expect(page.locator(".error.banner")).toContainText(
-    "Refresh, then move the row again",
-  );
-  await expect(page.locator("tbody tr").first()).toHaveAttribute(
-    "data-place-id",
-    "A",
-  );
-  await page
-    .locator(".error.banner")
-    .getByRole("button", { name: "Refresh journal" })
-    .click();
+  // A note edited elsewhere doesn't block a ranking move: they merge.
   await mouseMove(page, "B", "A", "before");
   await expect(page.locator("tbody tr").first()).toHaveAttribute(
     "data-place-id",

@@ -37,7 +37,7 @@ test("clearing all ratings leaves every place unrated and keeps details", async 
   await expect(page.getByRole("dialog")).toHaveCount(0);
 
   const saved = (await readJournal(page)).journal;
-  expect(saved.rankings).toBeUndefined();
+  expect((saved.rankings ?? [[], []]).flat()).toEqual([]);
   expect(saved.places).toEqual(
     journal.places.map((p) => ({ ...p, ratings: [null, null] })),
   );

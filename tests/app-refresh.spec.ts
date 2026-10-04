@@ -40,7 +40,7 @@ test("non-JSON error responses show a friendly message", async ({ page }) => {
   await seed(page, journal);
   await open(page);
   await page.route("**/api/journal", (route) =>
-    route.request().method() === "PUT"
+    route.request().method() === "PATCH"
       ? route.fulfill({
           status: 502,
           contentType: "text/html",

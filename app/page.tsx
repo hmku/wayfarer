@@ -537,7 +537,7 @@ export default function Home() {
             setModal(null);
           }}
           onRestore={async (backup) => {
-            await save(backup);
+            await save(backup, { replace: true });
             setQuery("");
             setCountry("");
             exitReorder();
