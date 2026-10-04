@@ -2,6 +2,7 @@ import { defineConfig } from "@playwright/test";
 import { mkdtempSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
+const port = Number(process.env.E2E_PORT || 3001);
 const testDirectory = mkdtempSync(join(tmpdir(), "wayfarer-e2e-"));
 export default defineConfig({
   testDir: "./tests",
@@ -9,7 +10,7 @@ export default defineConfig({
   workers: 1,
   reporter: "list",
   use: {
-    baseURL: "http://localhost:3001",
+    baseURL: `http://localhost:${port}`,
     headless: true,
     launchOptions: {
       executablePath: process.env.CHROMIUM_PATH || "/usr/bin/chromium",
@@ -17,8 +18,8 @@ export default defineConfig({
     },
   },
   webServer: {
-    command: "npm run dev -- --port 3001",
-    url: "http://localhost:3001",
+    command: `npm run dev -- --port ${port}`,
+    url: `http://localhost:${port}`,
     reuseExistingServer: false,
     env: {
       NEXT_TEST_DIST: "1",
