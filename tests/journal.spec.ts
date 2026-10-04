@@ -9,7 +9,7 @@ import {
   insertIntoGroups,
 } from "../lib/ranking";
 const origin = "http://localhost:3001";
-const key = "test-only-7ceddc38a9b23fa0fb389a91a5f0c88c";
+const key = "test-pass";
 async function login(context: import("@playwright/test").APIRequestContext) {
   const response = await context.post("/api/session", {
     headers: { origin },

@@ -25,6 +25,7 @@ export default defineConfig({
       LOCAL_FILE_STORAGE: "1",
       LOCAL_JOURNAL_PATH: join(testDirectory, "journal.json"),
       JOURNAL_KEY: "test-only-7ceddc38a9b23fa0fb389a91a5f0c88c",
+      JOURNAL_PASSWORD: "test-pass",
     },
   },
 });

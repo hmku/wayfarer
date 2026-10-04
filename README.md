@@ -26,7 +26,9 @@ Local development saves to `data/journal.json`. That file and all environment fi
 
 Vercel’s default preview deployment protection may require your Vercel account. Use the production domain for your partner. Configure production hosting access as appropriate for your Vercel plan; the app separately protects every journal read and write with its shared key. Preview deployments should have a separate key and storage, or no storage, so they cannot modify your production journal.
 
-Changing `JOURNAL_KEY` invalidates existing sessions on the next request after redeployment. The private storage remains intact. Anyone with the shared key has full read/write access; both partners are trusted equally. Losing the key requires setting a new one in Vercel. This is lightweight shared authentication, rather than individual accounts.
+For a simpler login, set `JOURNAL_PASSWORD` as a sensitive Vercel environment variable. Keep `JOURNAL_KEY` as a separate random secret of at least 32 characters; it signs sessions and is never entered in the app. If `JOURNAL_PASSWORD` is unset, the app accepts `JOURNAL_KEY` for login.
+
+Changing either variable invalidates existing sessions after redeployment. Private storage remains intact. Anyone with the login password has full read/write access; both partners are trusted equally. This is shared authentication without individual accounts.
 
 ## File storage
 
