@@ -2,6 +2,7 @@
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 import { Journal, location, Place } from "@/lib/model";
 import {
+  choosePivot,
   combinedScore,
   Groups,
   insertIntoGroups,
@@ -10,6 +11,7 @@ import {
   removeFromGroups,
   scoreMap,
 } from "@/lib/ranking";
+import { categoryLabels } from "@/lib/regions";
 import { ErrorNotice, Modal } from "./components";
 import { formatScore, statusLabel, todayIso } from "./table-format";
 import { categoryLabel, CategoryIcon, regionLabel } from "./place-kind";
@@ -270,11 +272,19 @@ export function ComparisonDialog({
   const [error, setError] = useState("");
   const saving = useRef(false);
   const firstChoice = useRef<HTMLButtonElement>(null);
-  const mid = Math.floor((bounds.low + bounds.high) / 2);
+  // Location plus category, if set, for a comparison card.
+  const cardDetail = (p: Place) =>
+    [location(p), p.category && categoryLabels[p.category]]
+      .filter(Boolean)
+      .join(" · ");
+  const [placesById] = useState(
+    () => new Map(journal.places.map((p) => [p.id, p])),
+  );
   const done = tie !== null || bounds.low === bounds.high;
-  const peer = !done
-    ? journal.places.find((p) => p.id === groups[mid][0])!
-    : null;
+  // Derived from bounds alone, so Back replays the same questions.
+  const pivot = !done ? choosePivot(groups, bounds, place, placesById) : null;
+  const mid = pivot?.index ?? bounds.low;
+  const peer = pivot ? placesById.get(pivot.peerId)! : null;
   const result = done
     ? insertIntoGroups(groups, place.id, tie ?? bounds.low, tie !== null)
     : null;
@@ -380,7 +390,7 @@ export function ComparisonDialog({
               aria-keyshortcuts="ArrowLeft"
             >
               <strong>{place.name}</strong>
-              <span>{location(place)}</span>
+              <span>{cardDetail(place)}</span>
             </button>
             <span className="comparison-vs">or</span>
             <button
@@ -389,7 +399,7 @@ export function ComparisonDialog({
               aria-keyshortcuts="ArrowRight"
             >
               <strong>{peer.name}</strong>
-              <span>{location(peer)}</span>
+              <span>{cardDetail(peer)}</span>
             </button>
           </div>
           <button
