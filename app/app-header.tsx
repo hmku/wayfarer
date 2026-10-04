@@ -1,14 +1,27 @@
 "use client";
-import { Compass, LockKeyhole, LogOut, RefreshCw, Settings } from "lucide-react";
+import {
+  ChartBar,
+  Compass,
+  LockKeyhole,
+  LogOut,
+  RefreshCw,
+  Settings,
+} from "lucide-react";
+import styles from "./stats-view.module.css";
 
 export function AppHeader({
   busy,
+  stats,
+  onStats,
   onHome,
   onRefresh,
   onSettings,
   onLock,
 }: {
   busy: boolean;
+  /** Whether the stats view is showing. */
+  stats: boolean;
+  onStats: () => void;
   /** Brand click: back to the top of the list with filters cleared (no reload). */
   onHome: () => void;
   onRefresh: () => void;
@@ -34,6 +47,16 @@ export function AppHeader({
         Private
       </span>
       <div className="header-actions">
+        <button
+          type="button"
+          className={`icon-button ${styles.headerToggle}`}
+          title={stats ? "Back to the list (shortcut: S)" : "Stats (shortcut: S)"}
+          aria-label="Stats"
+          aria-pressed={stats}
+          onClick={onStats}
+        >
+          <ChartBar size={19} />
+        </button>
         <button
           className="icon-button"
           title="Refresh journal"

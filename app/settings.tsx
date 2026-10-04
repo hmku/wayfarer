@@ -277,7 +277,7 @@ export function SettingsModal({
       </div>
       <p className="muted small shortcut-hint">
         Keyboard shortcuts: <kbd>/</kbd> search · <kbd>N</kbd> add a
-        destination · <kbd>1</kbd> Been · <kbd>2</kbd> Want to go
+        destination · <kbd>1</kbd> Been · <kbd>2</kbd> Want to go · <kbd>S</kbd> stats
       </p>
       <p className="muted small">
         On iPhone: open in Safari, tap Share, then Add to Home Screen. On
