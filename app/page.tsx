@@ -1,5 +1,6 @@
 "use client";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import { Bookmark, Check, Compass, MapPin, Plus, Upload } from "lucide-react";
 import { Journal, mergePlace, Place } from "@/lib/model";
 import { Category } from "@/lib/regions";
@@ -21,6 +22,7 @@ import { AppHeader } from "./app-header";
 import { CountryBreakdown, Stats } from "./stats";
 import { ListToolbar, PANEL_ID, tabId } from "./list-toolbar";
 import { SettingsModal } from "./settings";
+import { StatsView } from "./stats-view";
 import {
   defaultSort,
   deriveView,
@@ -54,6 +56,7 @@ function isTyping(target: EventTarget | null) {
 export default function Home() {
   const [requestedModal, setModal] = useState<ModalKind | null>(null);
   const [reordering, setReordering] = useState(false);
+  const [showStats, setShowStats] = useState(false);
   const {
     session,
     configured,
@@ -73,6 +76,7 @@ export default function Home() {
     onSessionReset: () => {
       setModal(null);
       setReordering(false);
+      setShowStats(false);
       setSort(defaultSort);
       clearNotice();
     },
@@ -133,6 +137,19 @@ export default function Home() {
     return () => window.removeEventListener("focus", onFocus);
   }, [session, modal, busy, reordering, refreshQuietly]);
 
+  /** Switch between the list and stats; leaving stats focuses the list heading. */
+  const toggleStats = useCallback(() => {
+    if (!showStats) {
+      setShowStats(true);
+      window.scrollTo({ top: 0 });
+      return;
+    }
+    flushSync(() => setShowStats(false));
+    const heading = document.querySelector<HTMLElement>(".journal-heading h1");
+    heading?.setAttribute("tabindex", "-1");
+    heading?.focus();
+  }, [showStats]);
+
   const openAdd = useCallback(() => {
     setPlace(undefined);
     setModal("add");
@@ -144,8 +161,11 @@ export default function Home() {
       if (e.defaultPrevented || e.ctrlKey || e.metaKey || e.altKey) return;
       if (isTyping(e.target) || modal || document.querySelector("dialog[open]"))
         return;
-      if (e.key === "/") {
-        if (reordering) return;
+      if (e.key === "s" || e.key === "S") {
+        e.preventDefault();
+        toggleStats();
+      } else if (e.key === "/") {
+        if (reordering || showStats) return;
         e.preventDefault();
         searchRef.current?.focus();
       } else if (e.key === "n" || e.key === "N") {
@@ -159,7 +179,7 @@ export default function Home() {
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [session, modal, reordering, loaded, busy, openAdd]);
+  }, [session, modal, reordering, showStats, loaded, busy, openAdd, toggleStats]);
 
   /** Save, then offer to put `snapshot` back for a few seconds. */
   async function saveWithUndo(
@@ -196,6 +216,7 @@ export default function Home() {
   }
 
   function goHome() {
+    setShowStats(false);
     setQuery("");
     setCountry("");
     setCategory("");
@@ -239,6 +260,8 @@ export default function Home() {
     <div className="app-shell">
       <AppHeader
         busy={busy}
+        stats={showStats}
+        onStats={toggleStats}
         onHome={goHome}
         onRefresh={async () => {
           if (await refresh()) showNotice("Journal refreshed");
@@ -246,7 +269,18 @@ export default function Home() {
         onSettings={() => setModal("settings")}
         onLock={lock}
       />
-      <main className="workspace">
+      {showStats && (
+        <main className="workspace">
+          <StatsView
+            journal={journal}
+            tab={tab}
+            loaded={loaded}
+            onTab={setTab}
+            onBack={toggleStats}
+          />
+        </main>
+      )}
+      <main className="workspace" hidden={showStats}>
         <section className="journal-heading">
           <h1>Destinations</h1>
           <button
