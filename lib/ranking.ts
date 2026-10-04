@@ -88,8 +88,17 @@ export function saveRanking(
     new Set(actual).size !== actual.length
   )
     throw new Error("The list changed. Refresh and restart comparisons.");
+  return replaceRanking(j, person, p.status, groups);
+}
+
+function replaceRanking(
+  j: Journal,
+  person: Person,
+  status: Place["status"],
+  groups: Groups,
+): Journal {
   const otherIds = new Set(
-    j.places.filter((x) => x.status !== p.status).map((x) => x.id),
+    j.places.filter((x) => x.status !== status).map((x) => x.id),
   );
   const other = (j.rankings?.[person] || [])
     .map((g) => g.filter((id) => otherIds.has(id)))
@@ -100,6 +109,35 @@ export function saveRanking(
   ];
   rankings[person] = [...other, ...groups];
   return { ...j, rankings };
+}
+
+export function moveRanking(
+  j: Journal,
+  person: Person,
+  status: Place["status"],
+  targetId: string,
+  anchorId: string,
+  side: "before" | "after",
+): Journal {
+  const target = j.places.find((p) => p.id === targetId);
+  const anchor = j.places.find((p) => p.id === anchorId);
+  if (
+    !target ||
+    !anchor ||
+    target.status !== status ||
+    anchor.status !== status
+  )
+    throw new Error("The list changed. Refresh and try again.");
+  if (targetId === anchorId) return j;
+
+  const groups = removeFromGroups(personalGroups(j, person, status), targetId);
+  let position = groups.findIndex((group) => group.includes(anchorId));
+  if (position === -1) {
+    position = groups.length;
+    groups.push([anchorId]);
+  }
+  groups.splice(position + (side === "after" ? 1 : 0), 0, [targetId]);
+  return replaceRanking(j, person, status, groups);
 }
 
 export function forgetRanking(j: Journal, id: string): Journal {

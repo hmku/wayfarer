@@ -67,11 +67,6 @@ export function PlaceDetails({
           </strong>
         </div>
       </div>
-      <p className="muted small">
-        {place.status === "been"
-          ? "Scores reflect your visited rankings."
-          : "Scores reflect your wishlist priorities."}
-      </p>
       {place.date && (
         <p className="detail-date">
           Visited{" "}
@@ -274,12 +269,7 @@ export function ComparisonDialog({
           >
             {busy ? "Saving…" : "Save ranking"}
           </button>
-        ) : (
-          <span className="muted small">
-            {history.length + 1} of at most{" "}
-            {Math.ceil(Math.log2(groups.length + 1))} comparisons
-          </span>
-        )}
+        ) : null}
       </div>
     </Modal>
   );

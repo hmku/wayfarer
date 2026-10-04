@@ -1246,6 +1246,66 @@ textarea {
 .comparison-footer .small {
   font-size: 11px;
 }
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+.reorder-toggle {
+  padding: 6px;
+  font-size: 12px;
+  flex-shrink: 0;
+}
+.drag-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0;
+  background: none;
+  color: var(--muted);
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
+}
+.drag-handle:active {
+  cursor: grabbing;
+}
+.places-table.reorder-table .rank-col {
+  width: 44px;
+  padding: 0;
+}
+.dragging-row {
+  opacity: 0.4;
+}
+.places-table tr.drop-before td {
+  box-shadow: inset 0 2px #397e65;
+}
+.places-table tr.drop-after td {
+  box-shadow: inset 0 -2px #397e65;
+}
+.drag-ghost {
+  position: fixed;
+  z-index: 20;
+  pointer-events: none;
+  width: 180px;
+  padding: 10px 12px;
+  background: #fff;
+  border: 1px solid #397e65;
+  border-radius: 6px;
+  box-shadow: 0 4px 15px #183a3220;
+  color: var(--ink);
+  font-size: 12px;
+  font-weight: 650;
+}
 @media (max-width: 760px) {
   .app-header {
     height: 60px;

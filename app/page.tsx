@@ -31,8 +31,10 @@ import {
   Person,
   saveRanking,
   scoreMap,
+  moveRanking,
 } from "@/lib/ranking";
 import { ComparisonDialog, PlaceDetails } from "./place-details";
+import { RankingTable } from "./ranking-table";
 
 export default function Home() {
   const [session, setSession] = useState<"loading" | "locked" | "open">(
@@ -48,6 +50,8 @@ export default function Home() {
   const [tab, setTab] = useState<"been" | "want">("been");
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("together");
+  const [reordering, setReordering] = useState(false);
+  const [previousSort, setPreviousSort] = useState("together");
   const [modal, setModal] = useState<
     "add" | "details" | "compare" | "edit" | "import" | "settings" | null
   >(null);
@@ -86,12 +90,17 @@ export default function Home() {
   useEffect(() => {
     if (session !== "open") return;
     const refresh = () => {
-      if (document.visibilityState === "visible" && !modal && !busy)
+      if (
+        document.visibilityState === "visible" &&
+        !modal &&
+        !busy &&
+        !reordering
+      )
         load().catch((e) => setError(e.message));
     };
     window.addEventListener("focus", refresh);
     return () => window.removeEventListener("focus", refresh);
-  }, [session, modal, busy, load]);
+  }, [session, modal, busy, reordering, load]);
   async function unlock(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const form = e.currentTarget;
@@ -418,25 +427,50 @@ export default function Home() {
                 aria-label="Search destinations"
                 placeholder="Search destinations"
                 value={query}
+                disabled={reordering}
                 onChange={(e) => setQuery(e.target.value)}
               />
             </label>
             <label className="sort-label">
-              Sort by
+              {reordering ? "Ranking" : "Sort by"}
               <select
-                aria-label="Sort destinations"
+                aria-label={
+                  reordering ? "Reorder ranking for" : "Sort destinations"
+                }
                 value={sort}
+                disabled={busy}
                 onChange={(e) => setSort(e.target.value)}
               >
-                <option value="together">Our rating</option>
-                <option value="first">{journal.people[0]}&apos;s rating</option>
-                <option value="second">
-                  {journal.people[1]}&apos;s rating
-                </option>
-                <option value="name">Name A–Z</option>
-                <option value="recent">Latest visit</option>
+                {!reordering && <option value="together">Together</option>}
+                <option value="first">{journal.people[0]}</option>
+                <option value="second">{journal.people[1]}</option>
+                {!reordering && (
+                  <>
+                    <option value="name">Name A–Z</option>
+                    <option value="recent">Latest visit</option>
+                  </>
+                )}
               </select>
             </label>
+            <button
+              className="subtle reorder-toggle"
+              disabled={
+                !loaded || busy || !journal.places.some((p) => p.status === tab)
+              }
+              onClick={() => {
+                if (reordering) {
+                  setReordering(false);
+                  setSort(previousSort);
+                } else {
+                  setPreviousSort(sort);
+                  setSort(sort === "second" ? "second" : "first");
+                  setQuery("");
+                  setReordering(true);
+                }
+              }}
+            >
+              {reordering ? "Done" : "Reorder"}
+            </button>
           </div>
           {error && (
             <div className="error banner" role="alert">
@@ -484,88 +518,44 @@ export default function Home() {
               </div>
             ) : (
               <>
-                <table className="places-table">
-                  <thead>
-                    <tr>
-                      <th scope="col" className="rank-col">
-                        #
-                      </th>
-                      <th scope="col">Destination</th>
-                      <th scope="col" className="location-col">
-                        Country / region
-                      </th>
-                      <th
-                        scope="col"
-                        className="rating-col"
-                        title={journal.people[0]}
-                      >
-                        {journal.people[0]}
-                      </th>
-                      <th
-                        scope="col"
-                        className="rating-col"
-                        title={journal.people[1]}
-                      >
-                        {journal.people[1]}
-                      </th>
-                      <th scope="col" className="rating-col">
-                        Together
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {list.map((p) => (
-                      <tr
-                        key={p.id}
-                        onClick={() => {
-                          setPlace(p);
-                          setModal("details");
-                        }}
-                      >
-                        <td className="rank-col">{ranks.get(p.id) ?? "—"}</td>
-                        <td>
-                          <button
-                            className="place-link"
-                            aria-label={`${p.name}${location(p) ? `, ${location(p)}` : ""}`}
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              setPlace(p);
-                              setModal("details");
-                            }}
-                          >
-                            <strong>{p.name}</strong>
-                            <span className="mobile-location">
-                              {location(p)}
-                            </span>
-                          </button>
-                        </td>
-                        <td className="location-col">{location(p) || "—"}</td>
-                        <td className="rating-col">
-                          {firstScores.get(p.id)?.toFixed(1) ?? "—"}
-                        </td>
-                        <td className="rating-col">
-                          {secondScores.get(p.id)?.toFixed(1) ?? "—"}
-                        </td>
-                        <td className="rating-col">
-                          <span
-                            className={
-                              together(p) === null ? "unrated" : "table-score"
-                            }
-                          >
-                            {together(p)?.toFixed(1) ?? "—"}
-                          </span>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+                <RankingTable
+                  key={`${tab}-${sort}`}
+                  places={list}
+                  people={journal.people}
+                  ranks={ranks}
+                  scores={[firstScores, secondScores]}
+                  reorder={reordering}
+                  busy={busy}
+                  onOpen={(p) => {
+                    setPlace(p);
+                    setModal("details");
+                  }}
+                  onMove={async ({ targetId, anchorId, side }) => {
+                    try {
+                      await save(
+                        moveRanking(
+                          journal,
+                          sort === "second" ? 1 : 0,
+                          tab,
+                          targetId,
+                          anchorId,
+                          side,
+                        ),
+                        "Ranking saved",
+                      );
+                    } catch (e) {
+                      const message = (e as Error).message;
+                      setError(
+                        message.includes("Your partner changed")
+                          ? "The ranking changed on another device. Refresh, then move the row again."
+                          : message,
+                      );
+                    }
+                  }}
+                />
               </>
             )}
           </div>
-          <p className="list-footnote">
-            Scores reflect relative rank (0–10). Equal ratings stay tied until
-            compared.
-          </p>
         </section>
       </main>
       {modal === "details" && currentPlace && (
