@@ -67,8 +67,12 @@ export function restorePlace(journal: Journal, snapshot: PlaceSnapshot): Journal
   const { place } = snapshot;
   const base = forgetRanking(journal, place.id);
   const exists = base.places.some((p) => p.id === place.id);
+  // A moved place only gets its list and date back, keeping any edits made
+  // since; a deleted one comes back whole.
   const places = exists
-    ? base.places.map((p) => (p.id === place.id ? place : p))
+    ? base.places.map((p) =>
+        p.id === place.id ? { ...p, status: place.status, date: place.date } : p,
+      )
     : base.places.toSpliced(
         Math.min(snapshot.index, base.places.length),
         0,

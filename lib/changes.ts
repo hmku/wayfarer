@@ -1,5 +1,5 @@
 import { Journal, Place } from "./model";
-import { Groups, Person, personalGroups } from "./ranking";
+import { Groups, Person } from "./ranking";
 
 type Status = Place["status"];
 const statuses: Status[] = ["been", "want"];
@@ -79,6 +79,41 @@ function only(groups: Groups, ids: Set<string>): Groups {
 const listIds = (j: Journal, status: Status) =>
   new Set(j.places.filter((p) => p.status === status).map((p) => p.id));
 
+/**
+ * One person's stored order for one list. Rated places that were never
+ * ranked are seeded only for display, so they never count as edits here.
+ */
+const stored = (j: Journal, person: Person, status: Status) =>
+  only(j.rankings?.[person] || [], listIds(j, status));
+
+/**
+ * Add back ids from `current` that `groups` doesn't know about (ranked by
+ * someone else meanwhile), next to the neighbours they had in `current`.
+ */
+function keepInsertions(groups: Groups, current: Groups, keep: Set<string>) {
+  const out = groups.map((g) => [...g]);
+  const at = (id: string) => out.findIndex((g) => g.includes(id));
+  current.forEach((group, gi) => {
+    for (const id of group) {
+      if (!keep.has(id)) continue;
+      const mate = group.find((x) => x !== id && at(x) !== -1);
+      if (mate) {
+        out[at(mate)].push(id);
+        continue;
+      }
+      let position = 0;
+      search: for (let k = gi - 1; k >= 0; k--)
+        for (const x of current[k])
+          if (at(x) !== -1) {
+            position = at(x) + 1;
+            break search;
+          }
+      out.splice(position, 0, [id]);
+    }
+  });
+  return out;
+}
+
 /** Replace one person's stored order for one list. */
 function withRanking(
   j: Journal,
@@ -136,8 +171,8 @@ export function diffJournals(before: Journal, after: Journal): Change[] {
   }
   for (const person of [0, 1] as const)
     for (const status of statuses) {
-      const expect = personalGroups(before, person, status);
-      const groups = personalGroups(after, person, status);
+      const expect = stored(before, person, status);
+      const groups = stored(after, person, status);
       // Places that only left the list (deleted or moved) aren't a reorder.
       if (!same(groups, only(expect, listIds(after, status))))
         changes.push({ kind: "ranking", person, status, groups, expect });
@@ -209,18 +244,29 @@ export function applyChanges(journal: Journal, changes: Change[]): Journal {
         break;
       }
       case "ranking": {
-        const current = personalGroups(j, c.person, c.status);
-        // Compare only places both versions know about, so additions and
-        // removals elsewhere in the list don't count as a reorder.
+        const ids = listIds(j, c.status);
+        const current = stored(j, c.person, c.status);
+        const groups = only(c.groups, ids);
+        // Compare only places the editor knew about, so places added or
+        // removed meanwhile don't count as a reorder.
         const seen = new Set(c.expect.flat());
         if (
-          !same(only(current, seen), only(c.expect, listIds(j, c.status))) &&
-          !same(current, only(c.groups, listIds(j, c.status)))
+          !same(only(current, seen), only(c.expect, ids)) &&
+          !same(current, groups)
         )
           throw new ChangeConflict(
             `${j.people[c.person]}'s ${c.status === "been" ? "Been" : "Want to go"} ranking`,
           );
-        j = withRanking(j, c.person, c.status, c.groups);
+        const placed = new Set(groups.flat());
+        const inserted = new Set(
+          current.flat().filter((id) => !seen.has(id) && !placed.has(id)),
+        );
+        j = withRanking(
+          j,
+          c.person,
+          c.status,
+          keepInsertions(groups, current, inserted),
+        );
         break;
       }
     }
@@ -231,8 +277,11 @@ export function applyChanges(journal: Journal, changes: Change[]): Journal {
 /** Shape check for changes received over the network. Values are checked
  * afterwards by validating the resulting journal. */
 export function parseChanges(input: unknown): Change[] {
-  if (!Array.isArray(input) || input.length > 20_000)
+  // Enough for a full import or clearing every rating; far below anything
+  // that would stall the server.
+  if (!Array.isArray(input) || input.length > 5_000)
     throw new Error("Invalid changes.");
+  const rankingKeys = new Set<string>();
   const isGroups = (g: unknown): g is Groups =>
     Array.isArray(g) &&
     g.every((x) => Array.isArray(x) && x.every((id) => typeof id === "string"));
@@ -263,6 +312,12 @@ export function parseChanges(input: unknown): Change[] {
           isGroups(c.expect)) ||
         (c.kind === "replace" && !!c.journal && typeof c.journal === "object"));
     if (!ok) throw new Error("Invalid changes.");
+    if (c.kind === "ranking") {
+      // At most one order per person and list in a single save.
+      const key = `${c.person}:${c.status}`;
+      if (rankingKeys.has(key)) throw new Error("Invalid changes.");
+      rankingKeys.add(key);
+    }
   }
   return input as Change[];
 }

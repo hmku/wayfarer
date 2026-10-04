@@ -2,6 +2,7 @@ import { test, expect } from "@playwright/test";
 import { emptyJournal, Journal, Place } from "../lib/model";
 import { applyChanges, diffJournals } from "../lib/changes";
 import { forgetRanking, moveRanking, personalGroups } from "../lib/ranking";
+import { restorePlace, snapshotPlace } from "../app/undo";
 import { resetJournal } from "./app-helpers";
 
 test.afterAll(resetJournal);
@@ -102,6 +103,86 @@ test("moving a place to the other list leaves its old rankings", () => {
   expect(result.places.find((p) => p.id === "A")?.status).toBe("want");
   expect(result.rankings!.flat(2)).not.toContain("A");
   expect(personalGroups(result, 1, "been")).toEqual([["C"], ["B"]]);
+});
+
+test("undo keeps a place the partner ranked into the same list meanwhile", () => {
+  // Alex deleted B earlier; undo will put B back into both people's lists.
+  const deleted = applyChanges(base, diffJournals(base, {
+    ...forgetRanking(base, "B"),
+    places: base.places.filter((p) => p.id !== "B"),
+  }));
+  const snapshot = snapshotPlace(base, "B")!;
+  // Meanwhile Sam adds D and ranks it top of his Been list.
+  const sam: Journal = {
+    ...deleted,
+    places: [...deleted.places, place("D")],
+    rankings: [deleted.rankings![0], [["D"], ...deleted.rankings![1]]],
+  };
+  const afterSam = applyChanges(deleted, diffJournals(deleted, sam));
+  const undo = restorePlace(deleted, snapshot);
+  const result = applyChanges(afterSam, diffJournals(deleted, undo));
+  expect(personalGroups(result, 1, "been")).toEqual([["D"], ["C"], ["B"], ["A"]]);
+  expect(personalGroups(result, 0, "been")).toEqual([["A"], ["B"], ["C"]]);
+});
+
+test("moving a rated place doesn't conflict with the partner's reorder", () => {
+  const start: Journal = {
+    ...base,
+    places: [
+      ...base.places,
+      place("V", "want"),
+      { ...place("X"), ratings: [null, 8] },
+    ],
+    rankings: [base.rankings![0], [...base.rankings![1], ["V"]]],
+  };
+  const sam = moveRanking(start, 1, "want", "V", "W", "before");
+  const moved = forgetRanking(start, "X");
+  const alex: Journal = {
+    ...moved,
+    places: moved.places.map((p) =>
+      p.id === "X" ? { ...p, status: "want" } : p,
+    ),
+  };
+  expect(diffJournals(start, alex).map((c) => c.kind)).toEqual(["field"]);
+  const afterSam = applyChanges(start, diffJournals(start, sam));
+  const result = applyChanges(afterSam, diffJournals(start, alex));
+  expect(result.rankings![1].filter((g) => ["V", "W"].includes(g[0]))).toEqual([
+    ["V"],
+    ["W"],
+  ]);
+});
+
+test("undoing a move keeps the partner's edits to that place", () => {
+  const snapshot = snapshotPlace(base, "A")!;
+  const moved = applyChanges(base, diffJournals(base, {
+    ...forgetRanking(base, "A"),
+    places: base.places.map((p) => (p.id === "A" ? { ...p, status: "want" } : p)),
+  }));
+  // The partner edits the moved place; this phone refreshes before Undo.
+  const edited = applyChanges(moved, diffJournals(moved, {
+    ...moved,
+    places: moved.places.map((p) =>
+      p.id === "A" ? { ...p, notes: "Sam's note", ratings: [null, 9] } : p,
+    ),
+  }));
+  const result = applyChanges(edited, diffJournals(edited, restorePlace(edited, snapshot)));
+  const a = result.places.find((p) => p.id === "A")!;
+  expect(a.status).toBe("been");
+  expect(a.notes).toBe("Sam's note");
+  expect(a.ratings).toEqual([null, 9]);
+});
+
+test("oversized or repeated ranking batches are rejected", async ({
+  request: api,
+  baseURL,
+}) => {
+  const headers = { origin: new URL(baseURL!).origin };
+  await api.post("/api/session", { headers, data: { key: "test-pass" } });
+  const ranking = { kind: "ranking", person: 0, status: "been", groups: [], expect: [] };
+  for (const changes of [Array(5001).fill({ kind: "delete", id: "x" }), [ranking, ranking]])
+    expect(
+      (await api.patch("/api/journal", { headers, data: { changes } })).status(),
+    ).toBe(400);
 });
 
 test("the API applies concurrent changes from stale copies", async ({
