@@ -191,7 +191,7 @@ test("comparisons continue past three until the exact position resolves", async 
   await page
     .getByRole("button", { name: "Target, Europe", exact: true })
     .click();
-  await page.getByRole("button", { name: "Adjust Alex's rating" }).click();
+  await page.getByRole("button", { name: "Rank Alex's rating" }).click();
   const choices: string[] = [];
   while (await page.locator(".comparison-choice").count()) {
     expect(choices.length).toBeLessThan(8);
