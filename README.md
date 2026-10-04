@@ -93,7 +93,7 @@ npm run build
 npm test
 ```
 
-The browser tests use Chromium at `/usr/bin/chromium`; set `CHROMIUM_PATH` to use another installation and `E2E_PORT` to change the test server port (default 3001). Tests launch a separate server on port 3001 and create an isolated temporary journal, leaving local and production travel files untouched. They cover unauthorized reads, CSRF rejection, cookie tampering, validation, concurrent writes, mobile editing, list switching, reload persistence, CSV deduplication/import/export, and locking. The `tests/server-*.spec.ts` files add unit tests for ranking seeding, CSV dates/limits/export, journal validation, and the login limiter, plus API checks for 429 responses, body limits, and cache headers.
+The browser tests use Chromium at `/usr/bin/chromium`; set `CHROMIUM_PATH` to use another installation and `E2E_PORT` to change the test server port (default 3001). Tests launch a separate server and create an isolated temporary journal, leaving local and production travel files untouched. They cover unauthorized reads, CSRF rejection, cookie tampering, validation, concurrent writes, mobile editing, list switching, reload persistence, CSV deduplication/import/export, and locking. The `tests/server-*.spec.ts` files add unit tests for ranking seeding, CSV dates/limits/export, journal validation, and the login limiter, plus API checks for 429 responses, body limits, and cache headers.
 
 ## Credits
 
