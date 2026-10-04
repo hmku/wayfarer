@@ -16,10 +16,23 @@ import {
   Check,
   Globe2,
 } from "lucide-react";
-import { average, emptyJournal, mergePlace, Journal, Place } from "@/lib/model";
+import {
+  location,
+  emptyJournal,
+  mergePlace,
+  Journal,
+  Place,
+} from "@/lib/model";
 import { exportCsv } from "@/lib/csv";
 import { ImportForm, Modal, PlaceForm } from "./components";
-const colors = ["#d4e8e0", "#e1e7ef", "#f3e6cf", "#e5e0ed", "#d9e8ef"];
+import {
+  combinedScore,
+  forgetRanking,
+  Person,
+  saveRanking,
+  scoreMap,
+} from "@/lib/ranking";
+import { ComparisonDialog, PlaceDetails } from "./place-details";
 
 export default function Home() {
   const [session, setSession] = useState<"loading" | "locked" | "open">(
@@ -36,9 +49,11 @@ export default function Home() {
   const [query, setQuery] = useState("");
   const [sort, setSort] = useState("together");
   const [modal, setModal] = useState<
-    "add" | "edit" | "import" | "settings" | null
+    "add" | "details" | "compare" | "edit" | "import" | "settings" | null
   >(null);
   const [place, setPlace] = useState<Place>();
+  const [person, setPerson] = useState<Person>(0);
+  const [comparisonKey, setComparisonKey] = useState(0);
   const load = useCallback(async () => {
     const r = await fetch("/api/journal", { cache: "no-store" });
     const data = await r.json();
@@ -52,6 +67,7 @@ export default function Home() {
     setJournal(data.journal);
     setRevision(data.revision);
     setLoaded(true);
+    return data.journal as Journal;
   }, []);
   useEffect(() => {
     (async () => {
@@ -165,34 +181,48 @@ export default function Home() {
   const been = journal.places.filter((p) => p.status === "been");
   const want = journal.places.filter((p) => p.status === "want");
   const countries = new Set(
-    been.map((p) => p.country.toLowerCase()).filter(Boolean),
+    been.map((p) => location(p).toLowerCase()).filter(Boolean),
   ).size;
-  const list = journal.places
-    .filter(
-      (p) =>
-        p.status === tab &&
-        `${p.name} ${p.country} ${p.notes}`
-          .toLowerCase()
-          .includes(query.toLowerCase()),
+  const firstScores = scoreMap(journal, 0, tab);
+  const secondScores = scoreMap(journal, 1, tab);
+  const together = (p: Place) =>
+    combinedScore(firstScores.get(p.id), secondScores.get(p.id));
+  const selectedScore = (p: Place) =>
+    sort === "first"
+      ? (firstScores.get(p.id) ?? null)
+      : sort === "second"
+        ? (secondScores.get(p.id) ?? null)
+        : together(p);
+  const ranked = journal.places
+    .filter((p) => p.status === tab)
+    .toSorted(
+      (a, b) =>
+        (selectedScore(b) ?? -1) - (selectedScore(a) ?? -1) ||
+        a.name.localeCompare(b.name),
+    );
+  const ranks = new Map<string, number>();
+  ranked.forEach((p, i) => {
+    if (selectedScore(p) !== null)
+      ranks.set(
+        p.id,
+        i > 0 && selectedScore(p) === selectedScore(ranked[i - 1])
+          ? ranks.get(ranked[i - 1].id)!
+          : i + 1,
+      );
+  });
+  const list = ranked
+    .filter((p) =>
+      `${p.name} ${location(p)} ${p.notes}`
+        .toLowerCase()
+        .includes(query.toLowerCase()),
     )
     .sort((a, b) => {
       if (sort === "name") return a.name.localeCompare(b.name);
       if (sort === "recent")
         return b.date.localeCompare(a.date) || a.name.localeCompare(b.name);
-      const score = (p: Place) =>
-        sort === "first"
-          ? p.ratings[0]
-          : sort === "second"
-            ? p.ratings[1]
-            : average(p);
-      return (
-        (score(b) ?? -1) - (score(a) ?? -1) || a.name.localeCompare(b.name)
-      );
+      return 0;
     });
-  const ranking = been.toSorted(
-    (a, b) =>
-      (average(b) ?? -1) - (average(a) ?? -1) || a.name.localeCompare(b.name),
-  );
+  const currentPlace = journal.places.find((p) => p.id === place?.id);
   if (session !== "open")
     return (
       <main className="welcome">
@@ -315,7 +345,7 @@ export default function Home() {
               <MapPin size={20} />
             </span>
             <div>
-              <strong>{been.length.toString().padStart(2, "0")}</strong>
+              <strong>{been.length}</strong>
               <span>Visited</span>
             </div>
           </div>
@@ -324,7 +354,7 @@ export default function Home() {
               <Globe2 size={20} />
             </span>
             <div>
-              <strong>{countries.toString().padStart(2, "0")}</strong>
+              <strong>{countries}</strong>
               <span>Countries / regions</span>
             </div>
           </div>
@@ -333,7 +363,7 @@ export default function Home() {
               <Bookmark size={20} />
             </span>
             <div>
-              <strong>{want.length.toString().padStart(2, "0")}</strong>
+              <strong>{want.length}</strong>
               <span>Wishlist</span>
             </div>
           </div>
@@ -454,91 +484,159 @@ export default function Home() {
               </div>
             ) : (
               <>
-                <div className="table-heading">
-                  <span>DESTINATION</span>
-                  <span>{journal.people[0]}</span>
-                  <span>{journal.people[1]}</span>
-                  <span>TOGETHER</span>
-                </div>
-                {list.map((p, i) => {
-                  const score = average(p);
-                  return (
-                    <button
-                      className="destination"
-                      key={p.id}
-                      onClick={() => {
-                        setPlace(p);
-                        setModal("edit");
-                      }}
-                    >
-                      <div className="destination-info">
-                        <span
-                          className="place-art"
-                          style={{ background: colors[i % colors.length] }}
-                        >
-                          <MapPin size={23} />
-                        </span>
-                        <div>
-                          <span className="place-heading">
-                            {tab === "been" && score !== null && (
-                              <span className="rank">
-                                {ranking.findIndex((r) => r.id === p.id) + 1}.
-                              </span>
-                            )}
+                <table className="places-table">
+                  <thead>
+                    <tr>
+                      <th scope="col" className="rank-col">
+                        #
+                      </th>
+                      <th scope="col">Destination</th>
+                      <th scope="col" className="location-col">
+                        Country / region
+                      </th>
+                      <th
+                        scope="col"
+                        className="rating-col"
+                        title={journal.people[0]}
+                      >
+                        {journal.people[0]}
+                      </th>
+                      <th
+                        scope="col"
+                        className="rating-col"
+                        title={journal.people[1]}
+                      >
+                        {journal.people[1]}
+                      </th>
+                      <th scope="col" className="rating-col">
+                        Together
+                      </th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {list.map((p) => (
+                      <tr
+                        key={p.id}
+                        onClick={() => {
+                          setPlace(p);
+                          setModal("details");
+                        }}
+                      >
+                        <td className="rank-col">{ranks.get(p.id) ?? "—"}</td>
+                        <td>
+                          <button
+                            className="place-link"
+                            aria-label={`${p.name}${location(p) ? `, ${location(p)}` : ""}`}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setPlace(p);
+                              setModal("details");
+                            }}
+                          >
                             <strong>{p.name}</strong>
+                            <span className="mobile-location">
+                              {location(p)}
+                            </span>
+                          </button>
+                        </td>
+                        <td className="location-col">{location(p) || "—"}</td>
+                        <td className="rating-col">
+                          {firstScores.get(p.id)?.toFixed(1) ?? "—"}
+                        </td>
+                        <td className="rating-col">
+                          {secondScores.get(p.id)?.toFixed(1) ?? "—"}
+                        </td>
+                        <td className="rating-col">
+                          <span
+                            className={
+                              together(p) === null ? "unrated" : "table-score"
+                            }
+                          >
+                            {together(p)?.toFixed(1) ?? "—"}
                           </span>
-                          <span className="place-meta">
-                            {p.country}
-                            {p.date
-                              ? `${p.country ? " · " : ""}${new Date(p.date + "T12:00:00").toLocaleDateString("en-US", { month: "short", year: "numeric" })}`
-                              : ""}
-                          </span>
-                          {p.notes && (
-                            <span className="place-note">{p.notes}</span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="person-rating">
-                        <span className="mobile-person">
-                          {journal.people[0]}
-                        </span>
-                        <span>{p.ratings[0]?.toFixed(1) ?? "—"}</span>
-                      </div>
-                      <div className="person-rating">
-                        <span className="mobile-person">
-                          {journal.people[1]}
-                        </span>
-                        <span>{p.ratings[1]?.toFixed(1) ?? "—"}</span>
-                      </div>
-                      <div className="together-rating">
-                        <span className="mobile-person">Together</span>
-                        <span
-                          className={score !== null ? "score-pill" : "unrated"}
-                        >
-                          {score?.toFixed(1) ?? "—"}
-                        </span>
-                      </div>
-                    </button>
-                  );
-                })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
               </>
             )}
           </div>
-          {tab === "been" && (
-            <p className="list-footnote">
-              Average of available ratings (0–10).
-            </p>
-          )}
+          <p className="list-footnote">
+            Scores reflect relative rank (0–10). Equal ratings stay tied until
+            compared.
+          </p>
         </section>
       </main>
+      {modal === "details" && currentPlace && (
+        <PlaceDetails
+          journal={journal}
+          place={currentPlace}
+          busy={busy}
+          onClose={() => setModal(null)}
+          onEdit={() => {
+            setPlace(currentPlace);
+            setModal("edit");
+          }}
+          onCompare={(i) => {
+            setPlace(currentPlace);
+            setPerson(i);
+            setComparisonKey((k) => k + 1);
+            setModal("compare");
+          }}
+          onMove={async () => {
+            const nextStatus = currentPlace.status === "been" ? "want" : "been";
+            const moved: Place = { ...currentPlace, status: nextStatus };
+            const base = forgetRanking(journal, moved.id);
+            await save({
+              ...base,
+              places: base.places.map((p) => (p.id === moved.id ? moved : p)),
+            });
+            setTab(nextStatus);
+          }}
+          onDelete={async () => {
+            const base = forgetRanking(journal, currentPlace.id);
+            await save(
+              {
+                ...base,
+                places: base.places.filter((p) => p.id !== currentPlace.id),
+              },
+              "Destination deleted",
+            );
+          }}
+        />
+      )}
+      {modal === "compare" && currentPlace && (
+        <ComparisonDialog
+          key={comparisonKey}
+          journal={journal}
+          place={place!}
+          person={person}
+          busy={busy}
+          onClose={() => setModal("details")}
+          onSave={async (groups) => {
+            await save(
+              saveRanking(journal, place!, person, groups),
+              "Ranking saved",
+            );
+          }}
+          onRestart={async () => {
+            const fresh = await load();
+            if (!fresh) throw new Error("Unlock the journal again.");
+            const updated = fresh.places.find((p) => p.id === place?.id);
+            setPlace(updated);
+            setModal(updated ? "compare" : null);
+            setComparisonKey((k) => k + 1);
+          }}
+        />
+      )}
       {(modal === "add" || modal === "edit") && (
         <PlaceForm
           place={modal === "edit" ? place : undefined}
-          people={journal.people}
           defaultStatus={tab}
           busy={busy}
           onRefresh={refresh}
-          onClose={() => setModal(null)}
+          onClose={() => setModal(place ? "details" : null)}
           onSave={async (p) => {
             const found = journal.places.some((x) => x.id === p.id);
             if (modal === "edit" && !found)
@@ -553,16 +651,9 @@ export default function Home() {
                   )
                 : [...journal.places, p],
             });
+            setPlace(p);
+            setModal("details");
           }}
-          onDelete={async (p) =>
-            save(
-              {
-                ...journal,
-                places: journal.places.filter((x) => x.id !== p.id),
-              },
-              "Destination removed",
-            )
-          }
         />
       )}{" "}
       {modal === "import" && (

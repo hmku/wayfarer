@@ -1,5 +1,13 @@
 import { test, expect, request } from "@playwright/test";
 import { emptyJournal } from "../lib/model";
+import { validateJournal, Journal } from "../lib/model";
+import {
+  personalGroups,
+  saveRanking,
+  scoreMap,
+  removeFromGroups,
+  insertIntoGroups,
+} from "../lib/ranking";
 const origin = "http://localhost:3001";
 const key = "test-only-7ceddc38a9b23fa0fb389a91a5f0c88c";
 async function login(context: import("@playwright/test").APIRequestContext) {
@@ -114,8 +122,10 @@ test("mobile journal editing, both lists, CSV preview, export, and lock", async 
     page.getByRole("heading", { name: "Destinations" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("button", { name: /Lisbon.*Portugal/ }),
-  ).toContainText("8.5");
+    page
+      .getByRole("row")
+      .filter({ has: page.getByRole("button", { name: /Lisbon.*Portugal/ }) }),
+  ).toContainText("10.0");
   await page.getByRole("tab", { name: "Want to go" }).click();
   await page
     .getByRole("button", { name: "Add a destination", exact: true })
@@ -124,6 +134,10 @@ test("mobile journal editing, both lists, CSV preview, export, and lock", async 
   await page.getByLabel("Country or region").fill("Japan");
   await page.getByLabel("Notes").fill("Gardens in the autumn");
   await page.getByRole("button", { name: "Save destination" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Kyoto", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Close dialog" }).click();
   await expect(
     page.getByRole("button", { name: /Kyoto.*Japan/ }),
   ).toBeVisible();
@@ -153,7 +167,8 @@ test("mobile journal editing, both lists, CSV preview, export, and lock", async 
   await page.getByRole("tab", { name: /Been/ }).click();
   await expect(page.getByRole("button", { name: /Rome.*Italy/ })).toBeVisible();
   await page.getByRole("button", { name: /Lisbon.*Portugal/ }).click();
-  await page.getByLabel("Alex's rating").fill("9.5");
+  await page.getByRole("button", { name: "Edit details" }).click();
+  await page.getByLabel("Country or region").fill("Portugal Coast");
   await login(api);
   const concurrent = await (await api.get("/api/journal")).json();
   concurrent.journal.places.find(
@@ -168,18 +183,23 @@ test("mobile journal editing, both lists, CSV preview, export, and lock", async 
   await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
     "Your partner changed the journal",
   );
-  await expect(page.getByLabel("Alex's rating")).toHaveValue("9.5");
+  await expect(page.getByLabel("Country or region")).toHaveValue(
+    "Portugal Coast",
+  );
   await page
     .getByRole("dialog")
     .getByRole("button", { name: "Refresh journal" })
     .click();
   await page.getByRole("button", { name: "Save destination" }).click();
   await expect(
-    page.getByRole("button", { name: /Lisbon.*Portugal/ }),
-  ).toContainText("8.8");
-  await expect(
-    page.getByRole("button", { name: /Lisbon.*Portugal/ }),
-  ).toContainText("A note from the other phone");
+    page
+      .getByRole("row")
+      .filter({ has: page.getByRole("button", { name: /Lisbon.*Portugal/ }) }),
+  ).toContainText("5.0");
+  await expect(page.getByRole("dialog")).toContainText(
+    "A note from the other phone",
+  );
+  await page.getByRole("button", { name: "Close dialog" }).click();
   await page.getByLabel("Search destinations").fill("no-such-place");
   await expect(
     page.getByRole("heading", { name: "No matching destinations" }),
@@ -208,4 +228,157 @@ test("mobile journal editing, both lists, CSV preview, export, and lock", async 
   await expect(page.getByLabel("Your shared key")).toBeVisible();
   expect((await page.request.get("/api/journal")).status()).toBe(401);
   expect(errors).toEqual([]);
+});
+
+test("comparison ranking preserves ties, original ratings, categories, and partner order", async ({
+  page,
+  request: api,
+}) => {
+  await login(api);
+  const current = await (await api.get("/api/journal")).json();
+  const seed: Journal = {
+    ...emptyJournal(),
+    people: ["Alex", "Sam"],
+    places: [
+      ...["A", "B", "C", "D", "E"].map((name, i) => ({
+        id: `compare-${name}`,
+        name,
+        country: "",
+        status: "been" as const,
+        date: "",
+        notes: "Region: Europe",
+        ratings: [4 - i, i] as [number, number],
+      })),
+      {
+        id: "compare-wish",
+        name: "Wishlist only",
+        country: "Asia",
+        status: "want",
+        date: "",
+        notes: "",
+        ratings: [4, 4],
+      },
+    ],
+  };
+  const initial = personalGroups(seed, 0, "been");
+  const reordered = insertIntoGroups(
+    removeFromGroups(initial, "compare-E"),
+    "compare-E",
+    0,
+    true,
+  );
+  const next = saveRanking(seed, seed.places[4], 0, reordered);
+  expect(next.places).toEqual(seed.places);
+  expect(personalGroups(next, 1, "been")).toEqual(
+    personalGroups(seed, 1, "been"),
+  );
+  expect(scoreMap(next, 0, "been").get("compare-E")).toBe(
+    scoreMap(next, 0, "been").get("compare-A"),
+  );
+  expect(personalGroups(next, 0, "want")).toEqual([["compare-wish"]]);
+  expect(() =>
+    validateJournal({ ...next, rankings: [[["missing-id"]], []] }),
+  ).toThrow("Invalid rankings");
+  expect(() =>
+    validateJournal({ ...next, rankings: [[["compare-A", "compare-A"]], []] }),
+  ).toThrow("Invalid rankings");
+  expect(
+    (
+      await api.put("/api/journal", {
+        headers: { origin },
+        data: { journal: seed, revision: current.revision },
+      })
+    ).status(),
+  ).toBe(200);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/");
+  await page.getByLabel("Your shared key").fill(key);
+  await page.getByRole("button", { name: "Unlock", exact: true }).click();
+  await expect(page.getByRole("table")).toBeVisible();
+  await expect(page.getByLabel("Travel summary")).toContainText(
+    "1Countries / regions",
+  );
+  expect(
+    await page
+      .locator("tbody tr")
+      .first()
+      .evaluate((row) => row.getBoundingClientRect().height),
+  ).toBeLessThan(65);
+  await page.getByRole("button", { name: "E, Europe", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("tab")).toHaveCount(0);
+  await page.getByRole("button", { name: "Adjust Alex's rating" }).click();
+  await expect(page.getByRole("dialog")).not.toContainText("Wishlist only");
+  await page.locator(".comparison-choice").filter({ hasText: /^E/ }).click();
+  await page.getByRole("button", { name: "Back", exact: true }).click();
+  await page.locator(".comparison-choice").filter({ hasText: /^E/ }).click();
+  await page.locator(".comparison-choice").filter({ hasText: /^E/ }).click();
+  await page.getByRole("button", { name: "Too close to call" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Ranking resolved" }),
+  ).toBeVisible();
+  const concurrent = await (await api.get("/api/journal")).json();
+  const partnerGroups = personalGroups(
+    concurrent.journal,
+    1,
+    "been",
+  ).toReversed();
+  const partner = saveRanking(
+    concurrent.journal,
+    concurrent.journal.places[0],
+    1,
+    partnerGroups,
+  );
+  expect(
+    (
+      await api.put("/api/journal", {
+        headers: { origin },
+        data: { journal: partner, revision: concurrent.revision },
+      })
+    ).status(),
+  ).toBe(200);
+  await page.getByRole("button", { name: "Save ranking" }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+    "Your partner changed",
+  );
+  await page
+    .getByRole("button", { name: "Refresh and restart comparisons" })
+    .click();
+  await page.locator(".comparison-choice").filter({ hasText: /^E/ }).click();
+  await page.locator(".comparison-choice").filter({ hasText: /^E/ }).click();
+  await page.getByRole("button", { name: "Too close to call" }).click();
+  await page.getByRole("button", { name: "Save ranking" }).click();
+  await expect(
+    page.getByRole("heading", { name: "E", exact: true }),
+  ).toBeVisible();
+  const saved = (await (await api.get("/api/journal")).json())
+    .journal as Journal;
+  expect(saved.rankings?.[1]).toEqual(partner.rankings![1]);
+  expect(scoreMap(saved, 0, "been").get("compare-E")).toBe(10);
+  expect(saved.places.find((p) => p.id === "compare-E")?.ratings).toEqual([
+    0, 4,
+  ]);
+  await page.reload();
+  await page.getByRole("button", { name: "E, Europe", exact: true }).click();
+  await expect(
+    page.locator(".detail-ratings").getByText("10.0", { exact: true }),
+  ).toHaveCount(1);
+  await page
+    .getByRole("button", { name: "Move to Want to go", exact: true })
+    .click();
+  await expect(page.getByRole("tab", { name: "Want to go" })).toHaveAttribute(
+    "aria-selected",
+    "true",
+  );
+  await expect(
+    page.getByRole("button", { name: "E, Europe", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("tab", { name: "Been" }).click();
+  await expect(
+    page.getByRole("button", { name: "E, Europe", exact: true }),
+  ).toHaveCount(0);
+  expect(
+    await page.evaluate(
+      () => document.documentElement.scrollWidth <= window.innerWidth,
+    ),
+  ).toBe(true);
 });

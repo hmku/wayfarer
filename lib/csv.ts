@@ -1,5 +1,6 @@
 import Papa from "papaparse";
 import { Journal, Place } from "./model";
+import { scoreMap } from "./ranking";
 export type Mapping = {
   name: string;
   country: string;
@@ -103,6 +104,10 @@ export function convertRows(
   return { places, errors };
 }
 export function exportCsv(j: Journal) {
+  const scores = {
+    been: [scoreMap(j, 0, "been"), scoreMap(j, 1, "been")],
+    want: [scoreMap(j, 0, "want"), scoreMap(j, 1, "want")],
+  };
   return Papa.unparse(
     {
       fields: [
@@ -113,15 +118,19 @@ export function exportCsv(j: Journal) {
         j.people[0] + " rating",
         j.people[1] + " rating",
         "Notes",
+        j.people[0] + " original rating",
+        j.people[1] + " original rating",
       ],
       data: j.places.map((p) => [
         p.name,
         p.country,
         p.status === "been" ? "Been" : "Want to go",
         p.date,
+        scores[p.status][0].get(p.id) ?? "",
+        scores[p.status][1].get(p.id) ?? "",
+        p.notes,
         p.ratings[0] ?? "",
         p.ratings[1] ?? "",
-        p.notes,
       ]),
     },
     { escapeFormulae: true },

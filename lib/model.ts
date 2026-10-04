@@ -7,7 +7,13 @@ export type Place = {
   notes: string;
   ratings: [number | null, number | null];
 };
-export type Journal = { version: 1; people: [string, string]; places: Place[] };
+export type Journal = {
+  version: 1;
+  people: [string, string];
+  places: Place[];
+  // Ordered tie groups, independently maintained for each person.
+  rankings?: [string[][], string[][]];
+};
 export const emptyJournal = (): Journal => ({
   version: 1,
   people: ["You", "Your partner"],
@@ -62,19 +68,50 @@ export function validateJournal(input: unknown): Journal {
       );
     ids.add(p.id);
   }
+  if (j.rankings !== undefined) {
+    if (!Array.isArray(j.rankings) || j.rankings.length !== 2)
+      throw new Error("Invalid rankings.");
+    for (const groups of j.rankings) {
+      if (!Array.isArray(groups) || groups.length > 2000)
+        throw new Error("Invalid rankings.");
+      const ranked = new Set<string>();
+      for (const group of groups) {
+        if (!Array.isArray(group) || !group.length || group.length > 2000)
+          throw new Error("Invalid rankings.");
+        for (const id of group) {
+          if (typeof id !== "string" || !ids.has(id) || ranked.has(id))
+            throw new Error("Invalid rankings.");
+          ranked.add(id);
+        }
+      }
+    }
+  }
   return {
     version: 1,
     people: [...j.people] as [string, string],
     places: j.places.map((p) => ({
       id: p.id,
       name: p.name.trim(),
-      country: p.country.trim(),
+      country: location(p),
       status: p.status,
       date: p.date,
       notes: p.notes,
       ratings: p.ratings,
     })),
+    ...(j.rankings
+      ? {
+          rankings: j.rankings.map((groups) => groups.map((g) => [...g])) as [
+            string[][],
+            string[][],
+          ],
+        }
+      : {}),
   };
+}
+
+export function location(p: Place) {
+  const region = p.notes.match(/^Region:[ \t]*(.+)$/m)?.[1].trim() || "";
+  return p.country.trim() || (region.length <= 120 ? region : "");
 }
 
 export function mergePlace(

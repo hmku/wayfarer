@@ -1,6 +1,6 @@
 "use client";
 import { useEffect, useRef, useState } from "react";
-import { X, Upload, Check, Trash2 } from "lucide-react";
+import { X, Upload, Check } from "lucide-react";
 import { Journal, Place } from "@/lib/model";
 import { convertRows, initialMapping, Mapping, readCsv } from "@/lib/csv";
 export function Modal({
@@ -52,26 +52,21 @@ export function Modal({
 }
 export function PlaceForm({
   place,
-  people,
   defaultStatus,
   busy,
   onSave,
-  onDelete,
   onRefresh,
   onClose,
 }: {
   place?: Place;
-  people: [string, string];
   defaultStatus: "been" | "want";
   busy: boolean;
   onRefresh: () => Promise<void>;
   onSave: (p: Place) => Promise<void>;
-  onDelete?: (p: Place) => Promise<void>;
   onClose: () => void;
 }) {
-  const [status, setStatus] = useState(place?.status || defaultStatus);
+  const status = place?.status || defaultStatus;
   const [error, setError] = useState("");
-  const [confirmDelete, setConfirmDelete] = useState(false);
   async function submit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     const f = new FormData(e.currentTarget);
@@ -83,12 +78,8 @@ export function PlaceForm({
         status,
         date: String(f.get("date") || ""),
         notes: String(f.get("notes") || ""),
-        ratings: [
-          f.get("first") === "" ? null : Number(f.get("first")),
-          f.get("second") === "" ? null : Number(f.get("second")),
-        ],
+        ratings: place?.ratings || [null, null],
       });
-      onClose();
     } catch (e) {
       setError((e as Error).message);
     }
@@ -99,24 +90,9 @@ export function PlaceForm({
       onClose={onClose}
     >
       <form onSubmit={submit}>
-        <div className="segmented">
-          <button
-            type="button"
-            aria-pressed={status === "been"}
-            className={status === "been" ? "selected" : ""}
-            onClick={() => setStatus("been")}
-          >
-            Been
-          </button>
-          <button
-            type="button"
-            aria-pressed={status === "want"}
-            className={status === "want" ? "selected" : ""}
-            onClick={() => setStatus("want")}
-          >
-            Want to go
-          </button>
-        </div>
+        <p className="category-badge">
+          {status === "been" ? "Been" : "Want to go"}
+        </p>
         <div className="field">
           <label htmlFor="place-name">Destination</label>
           <input
@@ -138,25 +114,6 @@ export function PlaceForm({
             defaultValue={place?.country}
             placeholder="e.g. Japan"
           />
-        </div>
-        <div className="form-grid">
-          {people.map((person, i) => (
-            <div className="field" key={i}>
-              <label htmlFor={"rating-" + i}>
-                {person}&apos;s rating <span className="optional">/ 10</span>
-              </label>
-              <input
-                id={"rating-" + i}
-                name={i === 0 ? "first" : "second"}
-                type="number"
-                min="0"
-                max="10"
-                step="0.1"
-                defaultValue={place?.ratings[i] ?? ""}
-                placeholder="Not rated"
-              />
-            </div>
-          ))}
         </div>
         <div className="field">
           <label htmlFor="visit-date">
@@ -193,30 +150,6 @@ export function PlaceForm({
           </div>
         )}
         <div className="form-footer">
-          {place && onDelete ? (
-            <button
-              className="danger subtle"
-              type="button"
-              disabled={busy}
-              onClick={async () => {
-                if (!confirmDelete) {
-                  setConfirmDelete(true);
-                  return;
-                }
-                try {
-                  await onDelete(place);
-                  onClose();
-                } catch (e) {
-                  setError((e as Error).message);
-                }
-              }}
-            >
-              <Trash2 size={16} />
-              {confirmDelete ? "Confirm delete" : "Delete"}
-            </button>
-          ) : (
-            <span />
-          )}
           <button className="primary" disabled={busy}>
             {busy ? (
               "Saving…"

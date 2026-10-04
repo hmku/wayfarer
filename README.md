@@ -1,6 +1,6 @@
 # Wayfarer
 
-A private travel journal for two: **Been** and **Want to go**, independent 0–10 ratings, a combined ranking, visit dates, and notes. A responsive Next.js app that can be added to a phone’s home screen.
+A private travel journal for two: **Been** and **Want to go**, independent comparison rankings, combined scores, visit dates, and notes. A responsive Next.js app that can be added to a phone’s home screen.
 
 ## Run locally
 
@@ -34,7 +34,17 @@ No Supabase, SQL schema, database, or account service. Production stores one JSO
 
 Private files are read only by server routes after authorization. API responses use `Cache-Control: private, no-store`. Same-origin mutation checks and Strict cookies protect browser requests. The key never appears in URLs or browser storage, and the storage token never reaches the client. The application does not send destinations to map, geocoding, photo, or analytics services. The decorative Venice photograph and fonts are bundled locally.
 
-Writes use Blob ETags to reject stale revisions. When two people edit at once, the second save shows a conflict, keeps the draft open, and offers Refresh journal. Refresh and save again to apply the draft to the latest journal. This keeps the first change from being silently overwritten. Export CSV periodically for a backup; private Blob is durable storage, not a versioned backup system. File storage suits a small journal; Vercel Blob may bill usage under your hosting plan.
+Writes use Blob ETags to reject stale revisions. When two people edit at once, the second save shows a conflict and keeps the draft open. Detail edits can refresh and merge with the latest journal; comparisons must refresh and restart because the candidate order may have changed. CSV exports include current scores and original imported ratings; private Blob is durable storage, not a versioned backup system. File storage suits a small journal; Vercel Blob may bill usage under your hosting plan.
+
+## Comparison rankings
+
+Open a destination, then choose **Adjust** or **Rank** under your name. Pick the destination you prefer in each side-by-side comparison; **Too close to call** creates a tie. Binary search narrows the insertion position in a few comparisons. Back undoes a choice; nothing is saved until **Save ranking**. Visited comparisons only use visited destinations. Wishlist comparisons ask where you would rather go. Each person and each category has an independent order.
+
+Imported scores initialize the order, preserving ties. Original numbers remain stored on each destination and visible under **Original ratings**. Previously imported `Region:` metadata supplies missing country/region fields. The app does not infer countries from broad regions.
+
+Displayed scores derive from relative rank: for `g` distinct tie groups, group index `i` scores `10 × (g − 1 − i) / (g − 1)`. A sole group scores 10; unrated entries show a dash. Together averages available personal scores. Reordering one place can change other displayed scores. These numbers describe relative preference, rather than an absolute trip-quality rating.
+
+The comparison approach follows publicly documented [Beli behavior](https://www.linkedin.com/pulse/analytics-user-reviews-beli-does-almost-right-gary-angel-l2vvc), with visual references from its [App Store screenshots](https://apps.apple.com/us/app/beli/id1478375386). Beli's exact score formula is proprietary; the formula above is this app's own, not a claim to reproduce it. This app uses direct comparisons without Beli's initial sentiment buckets.
 
 ## Import the Travel tab
 
