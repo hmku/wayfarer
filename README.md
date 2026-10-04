@@ -46,7 +46,7 @@ Writes use Blob ETags to reject stale revisions (the SDK's typed precondition er
 
 - **Moving a wishlist place to Been** asks for the visit date (today by default; clear it to leave the date blank). The details stay open so you can rank it right away. Moving resets that place's personal rankings.
 - **Undo**: after deleting or moving a destination, the confirmation offers Undo for a few seconds. It restores the place and its position in both rankings. If your partner saved in the meantime, refresh and repeat.
-- **Category and region**: each destination can be a City, Nature, or Beach place, and belongs to one of eight regions (Europe, Asia, Middle East, Africa, North America, Caribbean & Central America, South America, Oceania). Set both under **Edit details**. If no region is chosen, it is worked out from the country, so existing places already have one where the country is recognisable. Filter the list by category from the toolbar.
+- **Category and region**: each destination can be a City, Nature, or Beach place, and belongs to one of nine regions (West Coast, Central, East Coast, Caribbean, South America, Europe, Africa, Asia, Oceania). Set both under **Edit details**; a place without a region simply has none (nothing is guessed from the country). Filter the list by category from the toolbar.
 - **Stats**: the chart button in the header (or `S`) shows each person's and your shared average ranking score per category and per region, for Been by default or Want to go. Scores are the 0–10 relative ranking scores, so they show which kinds of places each of you ranks higher; places without a category are listed separately and not counted.
 - **Countries / regions**: tap the count in the summary to see visited and wishlist counts per location, and pick one to filter the list. Remove the filter with the chip's ×.
 - **Backup and restore**: Settings → **Download backup** saves the complete journal, including tie groups, as JSON. **Restore from backup** replaces the whole journal after a confirmation. Use this before large imports or edits; CSV export is for spreadsheets.
@@ -73,7 +73,7 @@ The comparison approach follows publicly documented [Beli behavior](https://www.
 In Google Sheets, select **Travel**, then **File → Download → Comma-separated values (.csv)**. In the app, choose **Import CSV** and map:
 
 - destination and optional country;
-- optional category (City, Nature, Beach) and region (one of the eight region names) columns; unknown values block the import with the row number. Columns named Region or Type are only picked automatically when every value is one the app knows, so a free-text Region column ("Southeast Asia") is left unmapped and regions come from the country;
+- optional category (City, Nature, Beach) and region (one of the nine region names) columns; unknown values block the import with the row number. Columns named Region or Type are only picked automatically when every value is one the app knows, so a free-text Region column ("Southeast Asia") is left unmapped;
 - each person’s rating column;
 - an optional status, date, and notes column.
 
@@ -81,7 +81,7 @@ Check the preview before importing. Ratings must be numbers from 0–10. Blank r
 
 Existing destinations are skipped by case-insensitive destination + country. Imports add entries and never replace the journal. Invalid ratings, unreadable dates, unrecognized statuses, or over-long fields block import, with the row number, so you can fix the file or the mapping. Destination and country are limited to 120 characters and notes to 5,000. The header row must be the first nonempty row. A journal holds up to 2,000 destinations, and each import file can be up to 2 MB.
 
-Export creates a UTF-8 CSV with a byte-order mark, so Excel shows accented names correctly, containing both lists, with Category and Region columns (the region shown is the chosen or inferred one). Score columns are named `<name> rating` and rounded to one decimal; importing an export maps them back to each person automatically, and the original imported ratings follow in their own columns. Text that a spreadsheet would run as a formula (starting with `=`, `+`, `@`, a tab, a carriage return, or `-` followed by something other than a space or a plain number) is prefixed with `'`. Notes like `- great food` and values like `-5` are left as written.
+Export creates a UTF-8 CSV with a byte-order mark, so Excel shows accented names correctly, containing both lists, with Category and Region columns. Score columns are named `<name> rating` and rounded to one decimal; importing an export maps them back to each person automatically, and the original imported ratings follow in their own columns. Text that a spreadsheet would run as a formula (starting with `=`, `+`, `@`, a tab, a carriage return, or `-` followed by something other than a space or a plain number) is prefixed with `'`. Notes like `- great food` and values like `-5` are left as written.
 
 Import travel records through the authenticated app. Travel data is stored in private Blob storage, not this repository.
 

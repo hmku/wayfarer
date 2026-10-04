@@ -1,7 +1,7 @@
 "use client";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { X, Upload, Check } from "lucide-react";
-import { Journal, location, Place, regionOf } from "@/lib/model";
+import { Journal, location, Place } from "@/lib/model";
 import {
   categories,
   Category,
@@ -173,19 +173,7 @@ export function PlaceForm({
   const [category, setCategory] = useState<Category | "">(
     place?.category ?? "",
   );
-  // "" means automatic: the region is inferred from the country (or a legacy
-  // Region: note), exactly as regionOf() does for the saved place.
   const [region, setRegion] = useState<Region | "">(place?.region ?? "");
-  const [countryText, setCountryText] = useState(place?.country ?? "");
-  const automaticRegion = regionOf({
-    id: "",
-    name: "",
-    status: "been",
-    date: "",
-    ratings: [null, null],
-    notes: place?.notes ?? "",
-    country: countryText,
-  });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
   const initial = useRef<Draft>({
@@ -231,7 +219,6 @@ export function PlaceForm({
         name: d.name.trim(),
         country: d.country.trim(),
         ...(d.category ? { category: d.category } : {}),
-        // Automatic regions stay unset so they keep following the country.
         ...(d.region ? { region: d.region } : {}),
         status: d.status,
         date: d.date,
@@ -319,7 +306,6 @@ export function PlaceForm({
               maxLength={120}
               defaultValue={place?.country}
               placeholder="e.g. Japan"
-              onChange={(e) => setCountryText(e.target.value)}
             />
           </div>
           <div className="field">
@@ -330,11 +316,7 @@ export function PlaceForm({
               value={region}
               onChange={(e) => setRegion(e.target.value as Region | "")}
             >
-              <option value="">
-                {automaticRegion
-                  ? `Automatic (${regionLabels[automaticRegion]})`
-                  : "Automatic (from country)"}
-              </option>
+              <option value="">Not set</option>
               {regions.map((r) => (
                 <option key={r} value={r}>
                   {regionLabels[r]}

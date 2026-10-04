@@ -20,7 +20,7 @@ export function CategoryIcon({
   return <Icon size={size} aria-hidden="true" />;
 }
 
-/** Label of the place's effective region (explicit or inferred), or "". */
+/** Label of the place's region, or "". */
 export function regionLabel(p: Place) {
   const region = regionOf(p);
   return region ? regionLabels[region] : "";

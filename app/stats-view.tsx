@@ -262,10 +262,9 @@ export function StatsView({
           <section className={styles.section} aria-labelledby="stats-region">
             <h2 id="stats-region">By region</h2>
             <p className={styles.sectionNote}>
-              Regions come from each destination’s country unless one is chosen
-              when editing.
-              {prefs.withoutRegion > 0 &&
-                ` ${prefs.withoutRegion} of ${prefs.total} ${prefs.withoutRegion === 1 ? "has" : "have"} no recognisable region.`}
+              {prefs.withoutRegion > 0
+                ? `${prefs.withoutRegion} of ${prefs.total} ${prefs.withoutRegion === 1 ? "has" : "have"} no region yet. Open a destination, choose Edit, and pick one.`
+                : "Each destination counts toward the region chosen for it."}
             </p>
             <div className={styles.grid}>
               {scorers.map((s, i) => (

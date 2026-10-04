@@ -1,4 +1,4 @@
-import { Category, inferRegion, isCategory, isRegion, Region } from "./regions";
+import { Category, isCategory, isRegion, Region } from "./regions";
 
 export type Place = {
   id: string;
@@ -6,7 +6,7 @@ export type Place = {
   country: string;
   /** Omitted when not chosen. */
   category?: Category;
-  /** Omitted when not chosen; regionOf() then infers it from the country. */
+  /** Omitted when not chosen. */
   region?: Region;
   status: "been" | "want";
   date: string;
@@ -139,9 +139,9 @@ export function location(p: Place) {
   return p.country.trim() || (region.length <= LIMITS.country ? region : "");
 }
 
-/** The place's region: chosen explicitly, or inferred from its location. */
+/** The place's chosen region, if any. */
 export function regionOf(p: Place): Region | undefined {
-  return p.region || inferRegion(location(p));
+  return p.region;
 }
 
 export function mergePlace(

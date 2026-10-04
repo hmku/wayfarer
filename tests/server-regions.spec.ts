@@ -1,6 +1,5 @@
 import { test, expect } from "@playwright/test";
 import { emptyJournal, Place, regionOf, validateJournal } from "../lib/model";
-import { inferRegion } from "../lib/regions";
 import { applyChanges, diffJournals } from "../lib/changes";
 
 const place = (patch: Partial<Place> = {}): Place => ({
@@ -14,24 +13,18 @@ const place = (patch: Partial<Place> = {}): Place => ({
   ...patch,
 });
 
-test("regions are inferred from free-text countries", () => {
-  expect(inferRegion("Italy")).toBe("europe");
-  expect(inferRegion("Kyoto, Japan")).toBe("asia");
-  expect(inferRegion("USA")).toBe("north-america");
-  expect(inferRegion("Costa Rica")).toBe("caribbean-central-america");
-  expect(inferRegion("Türkiye")).toBe("middle-east");
-  expect(inferRegion("Atlantis")).toBeUndefined();
-  expect(inferRegion("")).toBeUndefined();
-  // An explicit region wins; otherwise the country (or a Region: note) is used.
-  expect(regionOf(place({ country: "Peru" }))).toBe("south-america");
-  expect(regionOf(place({ country: "Peru", region: "europe" }))).toBe("europe");
-  expect(regionOf(place({ notes: "Region: Morocco" }))).toBe("africa");
+test("regions are never guessed from the country", () => {
+  expect(regionOf(place({ country: "Peru" }))).toBeUndefined();
+  expect(regionOf(place({ notes: "Region: Europe" }))).toBeUndefined();
+  expect(regionOf(place({ country: "Peru", region: "south-america" }))).toBe(
+    "south-america",
+  );
 });
 
 test("category and region are optional, validated, and omitted when unset", () => {
   const journal = (p: Place) => ({ ...emptyJournal(), places: [p] });
-  const saved = validateJournal(journal(place({ category: "beach", region: "oceania" })));
-  expect(saved.places[0]).toMatchObject({ category: "beach", region: "oceania" });
+  const saved = validateJournal(journal(place({ category: "beach", region: "west-coast" })));
+  expect(saved.places[0]).toMatchObject({ category: "beach", region: "west-coast" });
   const cleared = validateJournal(
     journal({ ...place(), category: "" as never, region: "" as never }),
   );
@@ -61,9 +54,4 @@ test("category and region save as field-level changes", () => {
     places: [{ ...result.places[0], category: undefined }],
   }));
   expect("category" in unset.places[0]).toBe(false);
-});
-
-test("typographic apostrophes and dashes still match", () => {
-  expect(inferRegion("Côte d’Ivoire")).toBe("africa");
-  expect(inferRegion("Lisbon – Portugal")).toBe("europe");
 });
