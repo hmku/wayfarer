@@ -2,53 +2,71 @@ import { NextResponse } from "next/server";
 import {
   authorized,
   configured,
-  COOKIE,
-  issue,
-  matches,
+  issueSessionToken,
+  passwordMatches,
   sameOrigin,
+  SESSION_COOKIE,
+  SESSION_MAX_AGE,
 } from "@/lib/auth";
-export async function GET() {
-  return NextResponse.json(
-    { authorized: await authorized(), configured: configured() },
-    { headers: { "Cache-Control": "no-store" } },
+import { clientAddress, NO_STORE, parseObject, readBody } from "@/lib/http";
+import { loginLimiter } from "@/lib/login-limiter";
+
+const reply = (body: object, status = 200) =>
+  NextResponse.json(body, { status, headers: NO_STORE });
+
+function tooManyAttempts(waitMs: number) {
+  const seconds = Math.ceil(waitMs / 1000);
+  const minutes = Math.ceil(seconds / 60);
+  const response = reply(
+    {
+      error: `Too many unlock attempts. Wait ${minutes === 1 ? "a minute" : `${minutes} minutes`}, then try again.`,
+    },
+    429,
   );
+  response.headers.set("Retry-After", String(seconds));
+  return response;
+}
+
+export async function GET() {
+  return reply({ authorized: await authorized(), configured: configured() });
 }
 export async function POST(request: Request) {
-  if (!sameOrigin(request))
-    return NextResponse.json({ error: "Request rejected." }, { status: 403 });
+  if (!sameOrigin(request)) return reply({ error: "Request rejected." }, 403);
   if (!configured())
-    return NextResponse.json(
+    return reply(
       { error: "The journal owner needs to configure the shared key." },
-      { status: 503 },
+      503,
     );
-  try {
-    if (Number(request.headers.get("content-length")) > 1000) throw new Error();
-    const { key } = await request.json();
-    if (typeof key !== "string" || key.length > 256 || !matches(key))
-      return NextResponse.json(
-        { error: "That key does not match. Check it and try again." },
-        { status: 401 },
-      );
-    const response = NextResponse.json({ ok: true });
-    response.cookies.set(COOKIE, issue(), {
-      httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "strict",
-      maxAge: 60 * 60 * 24 * 30,
-      path: "/",
-    });
-    return response;
-  } catch {
-    return NextResponse.json(
-      { error: "Please enter your shared key." },
-      { status: 400 },
+  const address = clientAddress(request);
+  const wait = loginLimiter.retryAfter(address);
+  if (wait > 0) return tooManyAttempts(wait);
+  // Oversized or unreadable bodies are treated like a missing key.
+  const body = await readBody(request, 1000).then(parseObject, () => null);
+  const key = body?.key;
+  if (typeof key !== "string" || !key)
+    return reply({ error: "Please enter your shared key." }, 400);
+  if (key.length > 256 || !passwordMatches(key)) {
+    loginLimiter.fail(address);
+    return reply(
+      { error: "That key does not match. Check it and try again." },
+      401,
     );
   }
+  loginLimiter.succeed(address);
+  const response = reply({ ok: true });
+  response.cookies.set(SESSION_COOKIE, issueSessionToken(), {
+    httpOnly: true,
+    secure: process.env.NODE_ENV === "production",
+    sameSite: "strict",
+    maxAge: SESSION_MAX_AGE,
+    path: "/",
+  });
+  return response;
 }
+// Clears this device's cookie only. Rotating JOURNAL_KEY revokes all sessions.
 export async function DELETE(request: Request) {
-  if (!sameOrigin(request))
-    return NextResponse.json({ error: "Request rejected." }, { status: 403 });
-  const response = NextResponse.json({ ok: true });
-  response.cookies.set(COOKIE, "", { maxAge: 0, path: "/" });
+  if (!sameOrigin(request)) return reply({ error: "Request rejected." }, 403);
+  const response = reply({ ok: true });
+  response.cookies.set(SESSION_COOKIE, "", { maxAge: 0, path: "/" });
   return response;
 }
