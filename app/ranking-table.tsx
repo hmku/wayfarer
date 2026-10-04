@@ -1,8 +1,15 @@
 "use client";
-import { useEffect, useRef, useState } from "react";
+import {
+  useEffect,
+  useEffectEvent,
+  useLayoutEffect,
+  useRef,
+  useState,
+} from "react";
 import { GripVertical } from "lucide-react";
 import { location, Place } from "@/lib/model";
 import { combinedScore } from "@/lib/ranking";
+import { formatScore } from "./table-format";
 
 type Move = { targetId: string; anchorId: string; side: "before" | "after" };
 type Drag = {
@@ -35,10 +42,50 @@ export function RankingTable({
   const table = useRef<HTMLTableElement>(null);
   const active = useRef<Drag | null>(null);
   const [drag, setDrag] = useState<Drag | null>(null);
+  /** Handle (by place id) that should keep focus after a keyboard move. */
+  const keyboardFocus = useRef<string | null>(null);
   function cancel() {
     active.current = null;
     setDrag(null);
   }
+  /**
+   * Shared by drag and keyboard moves: dropping next to a tie group targets
+   * the group's edge, so the moved row lands outside the whole group.
+   */
+  function snap(targetId: string, anchorId: string, side: Move["side"]): Move {
+    const tied = ranks.has(anchorId)
+      ? places.filter(
+          (p) => p.id !== targetId && ranks.get(p.id) === ranks.get(anchorId),
+        )
+      : [];
+    if (tied.length) anchorId = (side === "before" ? tied[0] : tied.at(-1)!).id;
+    return { targetId, anchorId, side };
+  }
+  // Rows are re-ordered by moving DOM nodes, which blurs a moved, focused
+  // handle. Put focus back on the same place's handle after each re-render.
+  useLayoutEffect(() => {
+    const id = keyboardFocus.current;
+    if (!id || !reorder) return;
+    const focused = document.activeElement;
+    if (focused && focused !== document.body) {
+      if (!table.current?.contains(focused)) keyboardFocus.current = null;
+      return;
+    }
+    const handle = [
+      ...(table.current?.querySelectorAll<HTMLElement>(
+        "tr[data-place-id] .drag-handle",
+      ) ?? []),
+    ].find((el) => el.closest<HTMLElement>("tr")?.dataset.placeId === id);
+    handle?.focus();
+  }, [places, busy, reorder]);
+  useEffect(() => {
+    // A pointer interaction anywhere ends keyboard focus tracking.
+    const clear = () => {
+      keyboardFocus.current = null;
+    };
+    document.addEventListener("pointerdown", clear, true);
+    return () => document.removeEventListener("pointerdown", clear, true);
+  }, []);
   function moveAt(current: Drag): Move | null {
     const rect = table.current!.getBoundingClientRect();
     const x = Math.max(rect.left + 5, Math.min(current.x, rect.right - 5));
@@ -46,28 +93,13 @@ export function RankingTable({
       .elementsFromPoint(x, current.y)
       .map((el) => el.closest<HTMLTableRowElement>("tr[data-place-id]"))
       .find((el) => el && table.current!.contains(el));
-    let move: Move | null = null;
-    if (row && row.dataset.placeId !== current.targetId) {
-      let anchorId = row.dataset.placeId!;
-      const r = row.getBoundingClientRect();
-      const side = current.y < r.top + r.height / 2 ? "before" : "after";
-      const tied = ranks.has(anchorId)
-        ? places.filter(
-            (p) =>
-              p.id !== current.targetId &&
-              ranks.get(p.id) === ranks.get(anchorId),
-          )
-        : [];
-      if (tied.length)
-        anchorId = (side === "before" ? tied[0] : tied.at(-1)!).id;
-      move = {
-        targetId: current.targetId,
-        anchorId,
-        side,
-      };
-    }
-    return move;
+    if (!row || row.dataset.placeId === current.targetId) return null;
+    const r = row.getBoundingClientRect();
+    const side = current.y < r.top + r.height / 2 ? "before" : "after";
+    return snap(current.targetId, row.dataset.placeId!, side);
   }
+  // Read the latest places/ranks from the auto-scroll loop without restarting it.
+  const moveAtLatest = useEffectEvent((current: Drag) => moveAt(current));
   const dragging = drag !== null;
   useEffect(() => {
     if (!dragging) return;
@@ -80,7 +112,7 @@ export function RankingTable({
       const before = window.scrollY;
       if (delta) window.scrollBy(0, delta);
       if (window.scrollY !== before) {
-        const next = { ...current, move: moveAt(current) };
+        const next = { ...current, move: moveAtLatest(current) };
         active.current = next;
         setDrag(next);
       }
@@ -150,8 +182,14 @@ export function RankingTable({
                       className="drag-handle"
                       aria-label={`Move ${p.name}`}
                       aria-describedby="reorder-help"
-                      disabled={busy}
+                      // aria-disabled (not disabled) keeps keyboard focus here
+                      // while a move saves.
+                      aria-disabled={busy || undefined}
                       onClick={(e) => e.stopPropagation()}
+                      onBlur={(e) => {
+                        // Focus moved somewhere on purpose; stop restoring it.
+                        if (e.relatedTarget) keyboardFocus.current = null;
+                      }}
                       onKeyDown={async (e) => {
                         if (e.key === "Escape") {
                           cancel();
@@ -161,13 +199,14 @@ export function RankingTable({
                           return;
                         e.preventDefault();
                         e.stopPropagation();
-                        const peer = places[i + (e.key === "ArrowUp" ? -1 : 1)];
-                        if (peer && !busy)
-                          await onMove({
-                            targetId: p.id,
-                            anchorId: peer.id,
-                            side: e.key === "ArrowUp" ? "before" : "after",
-                          });
+                        if (busy || active.current) return;
+                        const up = e.key === "ArrowUp";
+                        const peer = places[i + (up ? -1 : 1)];
+                        if (!peer) return;
+                        keyboardFocus.current = p.id;
+                        await onMove(
+                          snap(p.id, peer.id, up ? "before" : "after"),
+                        );
                       }}
                       onPointerDown={(e) => {
                         if (busy || !e.isPrimary || e.button !== 0) return;
@@ -220,14 +259,14 @@ export function RankingTable({
                 </td>
                 <td className="location-col">{location(p) || "—"}</td>
                 <td className="rating-col">
-                  {scores[0].get(p.id)?.toFixed(1) ?? "—"}
+                  {formatScore(scores[0].get(p.id))}
                 </td>
                 <td className="rating-col">
-                  {scores[1].get(p.id)?.toFixed(1) ?? "—"}
+                  {formatScore(scores[1].get(p.id))}
                 </td>
                 <td className="rating-col">
                   <span className={score === null ? "unrated" : "table-score"}>
-                    {score?.toFixed(1) ?? "—"}
+                    {formatScore(score)}
                   </span>
                 </td>
               </tr>
