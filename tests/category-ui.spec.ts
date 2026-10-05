@@ -54,9 +54,9 @@ test("the region is not set unless one is picked, whatever the country", async (
   // The fixed list of regions, after "Not set".
   await expect(region.locator("option")).toHaveText([
     "Not set",
-    "West Coast",
-    "Central",
-    "East Coast",
+    "US West Coast",
+    "US Central",
+    "US East Coast",
     "Caribbean",
     "South America",
     "Europe",
@@ -169,6 +169,6 @@ test("the table shows category and region, and filters by category", async ({
   await expect(details.locator(".category-badge")).toHaveText("Been");
   await expect(details.locator('[data-tag="category"]')).toHaveText("Nature");
   await expect(details.locator('[data-tag="region"]')).toHaveText(
-    "West Coast",
+    "US West Coast",
   );
 });

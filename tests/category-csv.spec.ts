@@ -107,3 +107,10 @@ test("free-text Region and Type columns are not auto-mapped", () => {
   const m = initialMapping(known.headers, known.rows);
   expect([m.region, m.category]).toEqual(["2", "3"]);
 });
+
+test("old US region names still import", () => {
+  const data = readCsv("Destination,Region\nSeattle,West Coast\nChicago,us central\n");
+  const result = convertRows(data.rows, { ...initialMapping(data.headers, data.rows), region: "1" });
+  expect(result.errors).toEqual([]);
+  expect(result.places.map((p) => p.region)).toEqual(["west-coast", "central"]);
+});

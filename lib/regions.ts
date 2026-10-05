@@ -19,9 +19,9 @@ export const regions = [
 ] as const;
 export type Region = (typeof regions)[number];
 export const regionLabels: Record<Region, string> = {
-  "west-coast": "West Coast",
-  central: "Central",
-  "east-coast": "East Coast",
+  "west-coast": "US West Coast",
+  central: "US Central",
+  "east-coast": "US East Coast",
   caribbean: "Caribbean",
   "south-america": "South America",
   europe: "Europe",
