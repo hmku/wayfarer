@@ -197,37 +197,39 @@ export function PlaceDetails({
               ? `Move to ${statusLabel("been")}`
               : `Move to ${statusLabel("want")}`}
           </button>
+          <button
+            ref={deleteButton}
+            className="subtle danger detail-delete"
+            disabled={busy}
+            aria-expanded={confirmDelete}
+            aria-controls={confirmDelete ? "delete-prompt" : undefined}
+            onClick={() => setConfirmDelete(true)}
+          >
+            Delete
+          </button>
         </div>
       )}
-      <div className="dialog-delete-row">
-        {confirmDelete && (
+      {confirmDelete && (
+        <div className="dialog-delete-row">
           <p className="dialog-delete-prompt" id="delete-prompt">
             Delete {place.name} from both lists? You can undo right after.
           </p>
-        )}
-        <div className="detail-actions">
-          <button
-            ref={deleteButton}
-            className="subtle danger"
-            disabled={busy}
-            aria-describedby={confirmDelete ? "delete-prompt" : undefined}
-            onClick={async () => {
-              if (!confirmDelete) {
-                setConfirmDelete(true);
-                return;
-              }
-              setError("");
-              try {
-                await onDelete();
-                onClose();
-              } catch (e) {
-                setError((e as Error).message);
-              }
-            }}
-          >
-            {confirmDelete ? "Confirm delete" : "Delete"}
-          </button>
-          {confirmDelete && (
+          <div className="detail-actions">
+            <button
+              className="primary danger-button"
+              disabled={busy}
+              onClick={async () => {
+                setError("");
+                try {
+                  await onDelete();
+                  onClose();
+                } catch (e) {
+                  setError((e as Error).message);
+                }
+              }}
+            >
+              Confirm delete
+            </button>
             <button
               type="button"
               className="subtle"
@@ -239,9 +241,9 @@ export function PlaceDetails({
             >
               Cancel
             </button>
-          )}
+          </div>
         </div>
-      </div>
+      )}
     </Modal>
   );
 }

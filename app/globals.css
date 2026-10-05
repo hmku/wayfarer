@@ -1044,11 +1044,19 @@ kbd {
   font-weight: 700;
   color: var(--ink);
 }
+/* Delete sits at the end of the main action row. */
+.detail-actions .detail-delete {
+  margin-left: auto;
+}
 .dialog-delete-row {
-  margin-top: 8px;
+  margin-top: 4px;
+  padding: 14px 16px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  background: var(--surface-2);
 }
 .dialog-delete-row .detail-actions {
-  margin: 4px 0 0;
+  margin: 10px 0 0;
 }
 .dialog-delete-prompt {
   font-size: 13px;
