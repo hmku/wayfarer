@@ -609,7 +609,8 @@ kbd {
   white-space: nowrap;
 }
 .sort-label select {
-  width: auto;
+  /* Fixed, so the Been-only sort options don't resize it between tabs. */
+  width: 150px;
   background: var(--surface);
   border: 1px solid var(--line);
   border-radius: 6px;
@@ -1447,8 +1448,12 @@ kbd {
   .sort-label {
     font-size: 0;
     gap: 0;
+    flex: 1 1 0;
+    min-width: 0;
   }
   .sort-label select {
+    width: 100%;
+    max-width: none;
     min-height: 40px;
     padding: 6px 8px;
   }
@@ -1615,7 +1620,7 @@ kbd {
   opacity: 0.85;
 }
 .list-controls .category-filter {
-  width: auto;
+  width: 150px;
   margin-left: auto;
   min-height: 0;
   background: var(--surface);
@@ -1639,6 +1644,10 @@ kbd {
     grid-template-columns: 1fr;
   }
   .list-controls .category-filter {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    max-width: none;
     min-height: 40px;
     padding: 6px 8px;
     /* 16px stops iOS from zooming on focus. */
