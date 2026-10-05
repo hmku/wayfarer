@@ -1,9 +1,30 @@
 "use client";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, Bookmark, ChartBar, MapPin } from "lucide-react";
 import { Journal } from "@/lib/model";
 import { Breakdown, Bucket, favourites, preferences } from "@/lib/preferences";
 import { categoryLabels, regionLabels } from "@/lib/regions";
+import {
+  biggestDisagreements,
+  byAverage,
+  distribution,
+  pairPoints,
+  Scorer,
+} from "@/lib/stats-plots";
+import { AgreementPlot } from "./charts/agreement-plot";
+import { Disagreements } from "./charts/disagreements";
+import {
+  Bar,
+  categoryColor,
+  categoryLegendItems,
+  ChartFrame,
+  chartStyles,
+  formatScore,
+  Legend,
+  RowLabel,
+  Segmented,
+} from "./charts/primitives";
+import { StripPlot } from "./charts/strip-plot";
 import { Tab } from "./journal-view";
 import styles from "./stats-view.module.css";
 
@@ -12,7 +33,6 @@ const lists: { tab: Tab; label: string }[] = [
   { tab: "want", label: "Want to go" },
 ];
 
-const format = (n: number) => n.toFixed(1);
 const placesText = (n: number) => `${n} ${n === 1 ? "place" : "places"}`;
 
 function joinLabels(labels: string[]) {
@@ -39,7 +59,7 @@ function Headline<K extends string>({
   const scored = buckets.filter((b) => b.count > 0).length;
   if (!top.length)
     return (
-      <p className={styles.note}>
+      <p className={chartStyles.note}>
         {scored
           ? `Rank places in another ${dimension} to compare.`
           : `No ranked places with a ${dimension} yet.`}
@@ -50,7 +70,7 @@ function Headline<K extends string>({
     <p className={styles.headline}>
       {owner} {top.length > 1 ? `${noun}s` : noun}:{" "}
       <strong>
-        {joinLabels(top.map((b) => label(b.key)))} ({format(top[0].average)})
+        {joinLabels(top.map((b) => label(b.key)))} ({formatScore(top[0].average)})
       </strong>
       {top.length > 1 && <span className={styles.tie}> tied</span>}
     </p>
@@ -61,43 +81,28 @@ function Bars<K extends string>({
   buckets,
   label,
   favourite,
+  color,
 }: {
   buckets: Bucket<K>[];
   label: (key: K) => string;
   favourite: Set<K>;
+  color?: (key: K) => string;
 }) {
-  // Rows with no ranked places are hidden rather than drawn as zero.
-  const shown = buckets.filter(
-    (b): b is Bucket<K> & { average: number } => b.average !== null,
-  );
+  // Highest average first; rows with no ranked places are hidden, not zero.
+  const shown = byAverage(buckets);
   if (!shown.length) return null;
   return (
-    <ul className={styles.bars}>
+    <ul className={chartStyles.rows}>
       {shown.map((b) => {
-        const text = `${label(b.key)}: average ${format(b.average)} out of 10 from ${placesText(b.count)}`;
+        const text = `${label(b.key)}: average ${formatScore(b.average)} out of 10 from ${placesText(b.count)}`;
         return (
           <li
             key={b.key}
-            className={favourite.has(b.key) ? styles.favourite : undefined}
+            className={favourite.has(b.key) ? chartStyles.strong : undefined}
             title={text}
           >
-            <span className={styles.barLabel}>
-              <span className={styles.name}>{label(b.key)}</span>
-              <span className={styles.value}>
-                <strong>{format(b.average)}</strong>
-                <span className={styles.count}>
-                  {" "}
-                  · n = {b.count}
-                  <span className="sr-only"> ranked {b.count === 1 ? "place" : "places"}</span>
-                </span>
-              </span>
-            </span>
-            <span className={styles.track} aria-hidden="true">
-              <span
-                className={styles.bar}
-                style={{ width: `${b.average * 10}%` }}
-              />
-            </span>
+            <RowLabel name={label(b.key)} value={b.average} count={b.count} />
+            <Bar value={b.average} color={color?.(b.key)} />
           </li>
         );
       })}
@@ -112,6 +117,7 @@ function Panel<K extends string>({
   buckets,
   label,
   dimension,
+  color,
 }: {
   name: string;
   owner: string;
@@ -119,12 +125,12 @@ function Panel<K extends string>({
   buckets: Bucket<K>[];
   label: (key: K) => string;
   dimension: Dimension;
+  color?: (key: K) => string;
 }) {
   const missing =
     dimension === "category" ? breakdown.missingCategory : breakdown.missingRegion;
   return (
-    <article className={styles.panel} aria-label={`${name}, by ${dimension}`}>
-      <h3>{name}</h3>
+    <ChartFrame title={name} label={`${name}, by ${dimension}`}>
       <Headline
         owner={owner}
         buckets={buckets}
@@ -134,15 +140,153 @@ function Panel<K extends string>({
       <Bars
         buckets={buckets}
         label={label}
+        color={color}
         favourite={new Set(favourites(buckets).map((b) => b.key))}
       />
       {breakdown.ranked > 0 && missing > 0 && (
-        <p className={styles.footnote}>
+        <p className={chartStyles.footnote}>
           {placesText(missing)} ranked without a {dimension}{" "}
           {missing === 1 ? "is" : "are"} not counted.
         </p>
       )}
-    </article>
+    </ChartFrame>
+  );
+}
+
+function AgreementSection({
+  journal,
+  tab,
+  listName,
+}: {
+  journal: Journal;
+  tab: Tab;
+  listName: string;
+}) {
+  const points = useMemo(() => pairPoints(journal, tab), [journal, tab]);
+  const gaps = useMemo(() => biggestDisagreements(points, 5), [points]);
+  const [first, second] = journal.people;
+  return (
+    <section className={styles.section} aria-labelledby="stats-agree">
+      <h2 id="stats-agree">Where you agree</h2>
+      <p className={styles.sectionNote}>
+        Each dot is a {listName} place you have both ranked, placed by your two
+        scores.
+      </p>
+      {points.length < 2 ? (
+        <div className={styles.emptyPlot}>
+          <p>
+            {points.length === 0
+              ? `${first} and ${second} have not ranked any of the same ${listName} places yet.`
+              : `Only one ${listName} place is ranked by both of you so far.`}{" "}
+            Open a destination and choose Rank under each name. Once at least two
+            places have scores from both of you, this plot shows where you agree.
+          </p>
+        </div>
+      ) : (
+        <div className={styles.agreeGrid}>
+          <ChartFrame
+            title={`${first} vs ${second}`}
+            label="Agreement plot"
+            subtitle={`${placesText(points.length)} ranked by both`}
+          >
+            <AgreementPlot points={points} people={journal.people} />
+          </ChartFrame>
+          <ChartFrame
+            title="Biggest disagreements"
+            label="Biggest disagreements"
+            subtitle="Places with the largest gap between your scores"
+          >
+            {gaps.length ? (
+              <Disagreements items={gaps} people={journal.people} />
+            ) : (
+              <p className={chartStyles.note}>
+                You give every place you have both ranked the same score.
+              </p>
+            )}
+          </ChartFrame>
+        </div>
+      )}
+    </section>
+  );
+}
+
+function DistributionSection({ journal, tab }: { journal: Journal; tab: Tab }) {
+  const [scorer, setScorer] = useState<Scorer>("together");
+  const dist = useMemo(() => distribution(journal, tab, scorer), [journal, tab, scorer]);
+  const [first, second] = journal.people;
+  const scorerName = scorer === "together" ? "Together" : journal.people[scorer];
+  const options: { value: Scorer; label: string }[] = [
+    { value: 0, label: first },
+    { value: 1, label: second },
+    { value: "together", label: "Together" },
+  ];
+  const anyWithoutCategory =
+    dist.categories.length > 0 && dist.regions.some((r) => r.dots.some((d) => !d.category));
+  return (
+    <section className={styles.section} aria-labelledby="stats-spread">
+      <h2 id="stats-spread">How the scores spread</h2>
+      <div className={styles.plotToolbar}>
+        <Segmented label="Whose scores" options={options} value={scorer} onChange={setScorer} />
+        <Legend
+          label="Dot colours and marks"
+          items={[
+            ...categoryLegendItems(anyWithoutCategory),
+            { label: "Average", color: "var(--chart-mark-ink)", kind: "line" },
+          ]}
+        />
+      </div>
+      {!dist.ranked ? (
+        <div className={styles.emptyPlot}>
+          <p>{scorerName === "Together" ? "Neither of you has" : `${scorerName} has not`} ranked any of these places yet.</p>
+        </div>
+      ) : (
+        <div className={styles.spreadGrid}>
+          <ChartFrame
+            title="By category"
+            label={`${scorerName} score spread, by category`}
+            subtitle="Every ranked place, highest average first"
+          >
+            {dist.categories.length ? (
+              <StripPlot
+                rows={dist.categories}
+                label={(k) => categoryLabels[k]}
+                rowName="category"
+                rowColor={(k) => categoryColor(k)}
+                scorer={scorerName}
+              />
+            ) : (
+              <p className={chartStyles.note}>No ranked places with a category yet.</p>
+            )}
+            {dist.missingCategory > 0 && (
+              <p className={chartStyles.footnote}>
+                {placesText(dist.missingCategory)} without a category not shown.
+              </p>
+            )}
+          </ChartFrame>
+          <ChartFrame
+            title="By region"
+            label={`${scorerName} score spread, by region`}
+            subtitle="Dots coloured by category"
+          >
+            {dist.regions.length ? (
+              <StripPlot
+                rows={dist.regions}
+                label={(k) => regionLabels[k]}
+                rowName="region"
+                scorer={scorerName}
+              />
+            ) : (
+              <p className={chartStyles.note}>No ranked places with a region yet.</p>
+            )}
+            {dist.missingRegion > 0 && (
+              <p className={chartStyles.footnote}>
+                {placesText(dist.missingRegion)} without a region not shown.
+              </p>
+            )}
+          </ChartFrame>
+        </div>
+      )}
+    </section>
   );
 }
 
@@ -179,7 +323,7 @@ export function StatsView({
   const listName = tab === "been" ? "Been" : "Want to go";
 
   return (
-    <div className={styles.view}>
+    <div className={`${styles.view} ${chartStyles.root}`}>
       <div className={styles.heading}>
         <button type="button" className="subtle" onClick={onBack}>
           <ArrowLeft size={17} aria-hidden="true" />
@@ -211,8 +355,8 @@ export function StatsView({
           ))}
         </div>
         <p className={styles.explain}>
-          Average of each person’s 0–10 ranking scores. n is the number of
-          ranked places.
+          Every plot uses each person’s 0–10 ranking scores, sorted
+          highest first. n is the number of ranked places.
         </p>
       </div>
 
@@ -255,6 +399,7 @@ export function StatsView({
                   buckets={s.breakdown.categories}
                   label={(k) => categoryLabels[k]}
                   dimension="category"
+                  color={(k) => categoryColor(k)}
                 />
               ))}
             </div>
@@ -280,6 +425,8 @@ export function StatsView({
               ))}
             </div>
           </section>
+          <AgreementSection journal={journal} tab={tab} listName={listName} />
+          <DistributionSection journal={journal} tab={tab} />
         </>
       )}
     </div>

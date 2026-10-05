@@ -1,0 +1,368 @@
+/* Shared chart primitives for the Stats view. Chart colours are defined once
+   here as custom properties on .root; everything else uses the app tokens in
+   globals.css, so light and dark both follow the system appearance.
+
+   Category palette: the first three slots of the validated categorical
+   palette (blue, aqua, orange), which pass the all-pairs colour-vision checks
+   in both modes. Light aqua is under 3:1 on white, so every chart pairs colour
+   with a legend, tooltips, and a visually hidden table. "None" and the
+   single-series bars use a neutral that is not a category hue. */
+.root {
+  --cat-city: #2a78d6;
+  --cat-nature: #1baf7a;
+  --cat-beach: #eb6834;
+  --cat-none: #8a9893;
+  --chart-neutral: #5d7a72;
+  --chart-grid: var(--line-soft);
+  --chart-axis: var(--line);
+  --chart-track: var(--soft);
+  --chart-ring: var(--surface);
+  --chart-mark-ink: var(--ink);
+}
+@media (prefers-color-scheme: dark) {
+  .root {
+    --cat-city: #3987e5;
+    --cat-nature: #199e70;
+    --cat-beach: #d95926;
+    --cat-none: #74837e;
+    --chart-neutral: #86a89d;
+  }
+}
+
+/* ---------- Frame: one card per chart ---------- */
+.frame {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-width: 0;
+  padding: 16px 18px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+}
+.frame > h3 {
+  font: 700 16px/1.3 var(--sans);
+  overflow-wrap: anywhere;
+}
+.subtitle {
+  font-size: 13px;
+  color: var(--muted);
+}
+.caption {
+  font-size: 13px;
+  color: var(--muted);
+}
+.caption strong {
+  color: var(--text);
+  font-weight: 700;
+}
+.note {
+  font-size: 14px;
+  color: var(--muted);
+}
+.footnote {
+  margin-top: auto;
+  padding-top: 2px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- Legend ---------- */
+.legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 14px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  font-size: 12px;
+  color: var(--muted);
+}
+.legend li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.swatch {
+  width: 10px;
+  height: 10px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--swatch);
+}
+.swatchLine {
+  width: 14px;
+  height: 0;
+  border-top: 2px solid var(--swatch);
+}
+.swatchDash {
+  width: 14px;
+  height: 0;
+  border-top: 1.5px dashed var(--swatch);
+}
+.swatchRing {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--swatch);
+  background: var(--surface);
+}
+
+/* ---------- Row labels (bars and strips share them) ---------- */
+.rows {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 2px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.rowLabel {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin-bottom: 4px;
+  font-size: 14px;
+}
+.rowName {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+.rowValue {
+  flex-shrink: 0;
+  font-variant-numeric: tabular-nums;
+  color: var(--ink);
+}
+.rowValue strong {
+  font-weight: 700;
+}
+.count {
+  color: var(--muted);
+  font-size: 12px;
+}
+.strong .rowName {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+/* ---------- Horizontal bar on a 0–10 track ---------- */
+.track {
+  position: relative;
+  display: block;
+  height: 10px;
+  background: var(--chart-track);
+  border-radius: 0 4px 4px 0;
+}
+.bar {
+  display: block;
+  height: 100%;
+  min-width: 2px;
+  background: var(--swatch, var(--chart-neutral));
+  border-radius: 0 4px 4px 0;
+}
+
+/* ---------- 0–10 axis: hairline gridlines + tick labels ---------- */
+.plot {
+  position: relative;
+}
+.svg {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.grid line {
+  stroke: var(--chart-grid);
+  stroke-width: 1;
+  shape-rendering: crispEdges;
+}
+.grid .axisLine {
+  stroke: var(--chart-axis);
+}
+.ticksX {
+  position: relative;
+  height: 18px;
+  margin-top: 4px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+}
+.ticksX span {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+}
+.ticksY {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -24px;
+  width: 18px;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  text-align: right;
+}
+.ticksY span {
+  position: absolute;
+  right: 0;
+  transform: translateY(-50%);
+}
+.axisTitle {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ---------- Dot mark: visible dot + larger transparent hit area ---------- */
+.dot {
+  cursor: pointer;
+  outline: none;
+}
+.dot .hit {
+  fill: transparent;
+}
+.dot .mark {
+  fill: var(--swatch);
+  stroke: var(--chart-ring);
+  stroke-width: 2;
+  transition:
+    r 0.12s,
+    opacity 0.12s;
+}
+.dot.faded .mark {
+  opacity: 0.72;
+}
+.dot .halo {
+  fill: none;
+  stroke: var(--chart-mark-ink);
+  stroke-width: 1.5;
+}
+.dot.active .mark,
+.dot:hover .mark {
+  opacity: 1;
+}
+.dot .focus {
+  fill: none;
+  stroke: var(--focus);
+  stroke-width: 2;
+  opacity: 0;
+}
+.dot.active .focus {
+  opacity: 1;
+}
+.dot:focus-visible .focus {
+  opacity: 1;
+}
+
+/* ---------- Tooltip ---------- */
+.tooltip {
+  position: absolute;
+  z-index: 3;
+  min-width: 120px;
+  max-width: 220px;
+  padding: 8px 10px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  box-shadow: 0 4px 14px var(--shadow-soft);
+  font-size: 12px;
+  line-height: 1.35;
+  color: var(--muted);
+  pointer-events: none;
+  white-space: normal;
+}
+.tooltipTitle {
+  display: block;
+  margin-bottom: 4px;
+  color: var(--ink);
+  font-size: 13px;
+  font-weight: 700;
+  overflow-wrap: anywhere;
+}
+.tooltipDetail {
+  display: block;
+  margin: -2px 0 5px;
+}
+.tooltipRow {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.tooltipRow strong {
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+  font-weight: 700;
+}
+.tooltipKey {
+  width: 10px;
+  height: 0;
+  border-top: 2px solid var(--swatch);
+}
+
+/* ---------- Segmented control (person picker) ---------- */
+.segmented {
+  display: inline-flex;
+  max-width: 100%;
+  padding: 3px;
+  gap: 3px;
+  background: var(--soft);
+  border-radius: 9px;
+}
+.segmented button {
+  min-height: 34px;
+  min-width: 0;
+  padding: 5px 12px;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  font: 700 13px/1.1 var(--sans);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.segmented button:hover {
+  color: var(--ink);
+}
+.segmented button[aria-pressed="true"] {
+  background: var(--surface);
+  color: var(--ink);
+  box-shadow: 0 1px 3px var(--shadow-soft);
+}
+
+@media (max-width: 760px) {
+  .frame {
+    padding: 14px;
+  }
+  .segmented {
+    display: flex;
+    width: 100%;
+  }
+  .segmented button {
+    flex: 1;
+  }
+}
+
+@media (forced-colors: active) {
+  .bar,
+  .swatch {
+    background: CanvasText;
+  }
+  .track {
+    border: 1px solid CanvasText;
+  }
+  .dot .mark {
+    fill: CanvasText;
+    stroke: Canvas;
+  }
+  .dot.active .focus,
+  .dot:focus-visible .focus {
+    stroke: Highlight;
+  }
+}

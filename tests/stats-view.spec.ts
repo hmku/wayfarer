@@ -28,14 +28,15 @@ test("stats show each person's category and region preferences", async ({
 
   const harrison = panel(page, "Harrison, by category");
   await expect(harrison).toContainText("Harrison’s favourite: Beach (8.3)");
+  // Rows are sorted by average, highest first.
   await expect(harrison.getByRole("listitem")).toHaveText([
-    /City\s*2\.5\s*· n = 2/,
-    /Nature\s*5\.0\s*· n = 2/,
     /Beach\s*8\.3\s*· n = 3/,
+    /Nature\s*5\.0\s*· n = 2/,
+    /City\s*2\.5\s*· n = 2/,
   ]);
-  await expect(panel(page, "Maya, by category")).toContainText(
-    "Maya’s favourite: Nature (9.2)",
-  );
+  const maya = panel(page, "Maya, by category");
+  await expect(maya).toContainText("Maya’s favourite: Nature (9.2)");
+  await expect(maya.getByRole("listitem")).toHaveText([/^Nature/, /^City/, /^Beach/]);
   await expect(panel(page, "Together, by category")).toContainText(
     "Your shared favourite",
   );
@@ -46,7 +47,13 @@ test("stats show each person's category and region preferences", async ({
   // Regions: rows without ranked places are hidden.
   const harrisonRegions = panel(page, "Harrison, by region");
   await expect(harrisonRegions).toContainText("Harrison’s favourite region: Oceania (8.3)");
-  await expect(harrisonRegions.getByRole("listitem")).toHaveCount(5);
+  await expect(harrisonRegions.getByRole("listitem")).toHaveText([
+    /^Oceania\s*8\.3/,
+    /^Caribbean\s*6\.7/,
+    /^Europe\s*5\.8/,
+    /^Asia\s*5\.0/,
+    /^US West Coast\s*3\.3/,
+  ]);
   await expect(harrisonRegions).not.toContainText("Africa");
   // Lisbon has a country but no stored region, so it is not counted.
   await expect(page.getByText("1 of 8 has no region yet.", { exact: false })).toBeVisible();
@@ -124,4 +131,87 @@ test("stats fit a phone screen without sideways scrolling", async ({ page }) => 
   // Panels stack: each is nearly the full width of the screen.
   const box = await panel(page, "Harrison, by category").boundingBox();
   expect(box!.width).toBeGreaterThan(330);
+  // The agreement plot stays square and inside the screen.
+  const plot = page.getByRole("article", { name: "Agreement plot" });
+  await plot.scrollIntoViewIfNeeded();
+  const svg = await plot.locator("svg").boundingBox();
+  expect(Math.abs(svg!.width - svg!.height)).toBeLessThan(2);
+  expect(svg!.x + svg!.width).toBeLessThanOrEqual(390);
+  await page.getByRole("article", { name: "Together score spread, by region" }).scrollIntoViewIfNeeded();
+  expect(
+    await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth),
+  ).toBeLessThanOrEqual(0);
+});
+
+test("stats plot where the two people agree and disagree", async ({ page }) => {
+  await seed(page, statsJournal);
+  await open(page);
+  await page.getByRole("button", { name: "Stats", exact: true }).click();
+
+  // Seven places are ranked by both (Coral Coast only by Harrison).
+  const plot = page.getByRole("article", { name: "Agreement plot" });
+  await expect(plot).toContainText("7 places ranked by both");
+  const dots = plot.getByRole("img");
+  await expect(dots).toHaveCount(7);
+  // Dolomites (6.7, 10) and Uluwatu (10, 5) are the Pareto frontier.
+  await expect(plot).toContainText("Best mutual picks (outlined, joined by the step line): Dolomites and Uluwatu.");
+  await expect(plot.getByRole("img", { name: /best mutual pick/ })).toHaveCount(2);
+  // A data table carries every value for screen readers.
+  await expect(plot.getByRole("table")).toContainText("Tulum");
+
+  // Hover shows the place and both scores.
+  await plot.getByRole("img", { name: /^Rome:/ }).hover();
+  const tooltip = plot.locator("[data-tooltip]");
+  await expect(tooltip).toContainText("Rome");
+  await expect(tooltip).toContainText("City · Europe");
+  await expect(tooltip).toContainText("5.0 Harrison");
+  await expect(tooltip).toContainText("6.7 Maya");
+
+  // Keyboard: one tab stop, arrows move left to right.
+  const first = plot.getByRole("img", { name: /^Tokyo:/ });
+  await expect(first).toHaveAttribute("tabindex", "0");
+  await first.focus();
+  await page.keyboard.press("ArrowRight");
+  await expect(plot.getByRole("img", { name: /^Lisbon:/ })).toBeFocused();
+  await expect(tooltip).toContainText("Lisbon");
+  await page.keyboard.press("End");
+  await expect(plot.getByRole("img", { name: /^Uluwatu:/ })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(tooltip).toHaveCount(0);
+
+  // Biggest gaps first, with who likes each more.
+  const gaps = page
+    .getByRole("list", { name: "Places by score gap" })
+    .getByRole("listitem");
+  await expect(gaps).toHaveCount(5);
+  await expect(gaps.nth(0)).toContainText("Tulum");
+  await expect(gaps.nth(0)).toContainText("Harrison likes it more");
+  await expect(gaps.nth(0)).toContainText("Harrison 6.7 · Maya 0.0 · gap 6.7");
+  await expect(gaps.nth(1)).toContainText("Banff");
+  await expect(gaps.nth(1)).toContainText("Maya likes it more");
+  await expect(gaps.nth(2)).toContainText("Uluwatu");
+
+  // Distribution: Together by default, then one person; rows by average.
+  const spread = page.getByRole("article", { name: "Together score spread, by category" });
+  await expect(spread.getByRole("listitem")).toHaveCount(3);
+  await page.getByRole("group", { name: "Whose scores" }).getByRole("button", { name: "Harrison" }).click();
+  const harrisonSpread = page.getByRole("article", { name: "Harrison score spread, by category" });
+  await expect(harrisonSpread.getByRole("listitem")).toHaveText([/^Beach/, /^Nature/, /^City/]);
+  // Beach: Uluwatu, Coral Coast and Tulum.
+  await expect(harrisonSpread.getByRole("listitem").first().getByRole("img")).toHaveCount(3);
+  await page.getByRole("group", { name: "Whose scores" }).getByRole("button", { name: "Maya" }).click();
+  await expect(
+    page.getByRole("article", { name: "Maya score spread, by category" }).getByRole("listitem"),
+  ).toHaveText([/^Nature/, /^City/, /^Beach/]);
+  await expect(
+    page.getByRole("article", { name: "Maya score spread, by region" }).getByRole("listitem").last(),
+  ).toContainText("Caribbean");
+
+  // The list toggle applies to the plots too: nothing is ranked by both in Want to go.
+  await page.getByRole("button", { name: /^Want to go/ }).click();
+  await expect(plot).toHaveCount(0);
+  await expect(
+    page.getByText("Harrison and Maya have not ranked any of the same Want to go places yet."),
+  ).toBeVisible();
+  await expect(page.getByText("Maya has not ranked any of these places yet.")).toBeVisible();
 });

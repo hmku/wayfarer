@@ -1,0 +1,132 @@
+/* Layout for the individual plots. Colours, type, gridlines, dots, legends
+   and tooltips come from charts.module.css. */
+
+/* ---------- Agreement scatter ---------- */
+.agreement {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.scatter {
+  width: 100%;
+  max-width: 460px;
+  align-self: center;
+}
+.scatter > .axisRow {
+  margin-bottom: 8px;
+}
+.scatterBody {
+  padding-left: 26px;
+  padding-right: 6px;
+}
+.square {
+  aspect-ratio: 1;
+}
+.diagonal {
+  stroke: var(--muted);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 4;
+  opacity: 0.7;
+}
+.frontierLine line {
+  stroke: var(--chart-mark-ink);
+  stroke-width: 2;
+  stroke-linecap: round;
+  opacity: 0.45;
+}
+/* Axis title + which side of the diagonal favours whom, outside the plot
+   so dots never cover them. */
+.axisRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 12px;
+}
+.side {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+/* ---------- Strip plot ---------- */
+.strips {
+  display: flex;
+  flex-direction: column;
+}
+.strips > ul {
+  gap: 6px;
+}
+.strip {
+  margin: 0 6px;
+}
+.stripTicks {
+  margin: 0 6px;
+}
+.average {
+  stroke: var(--chart-mark-ink);
+  stroke-width: 2.5;
+  stroke-linecap: round;
+}
+
+/* ---------- Disagreements ---------- */
+.gapRow {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.gapWho {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: var(--muted);
+}
+.dumbbell {
+  position: relative;
+  display: block;
+  height: 14px;
+  margin: 2px 6px;
+  background: linear-gradient(var(--chart-grid), var(--chart-grid)) left center / 100% 1px
+    no-repeat;
+}
+.dumbbellLine {
+  position: absolute;
+  top: 6px;
+  height: 2px;
+  background: var(--muted);
+  opacity: 0.6;
+}
+.personA,
+.personB {
+  position: absolute;
+  top: 2px;
+  width: 10px;
+  height: 10px;
+  margin-left: -5px;
+  border-radius: 50%;
+  border: 2px solid var(--chart-mark-ink);
+  box-shadow: 0 0 0 2px var(--surface);
+}
+.personA {
+  background: var(--chart-mark-ink);
+}
+.personB {
+  background: var(--surface);
+}
+.gapScores {
+  font-size: 12px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.gapScores strong {
+  color: var(--ink);
+  font-weight: 700;
+}
+
+@media (forced-colors: active) {
+  .personA {
+    background: CanvasText;
+  }
+  .personA,
+  .personB {
+    border-color: CanvasText;
+  }
+}
